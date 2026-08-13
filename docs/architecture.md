@@ -32,8 +32,8 @@ Browser -- GET /api/shoes ------> Hono API -- GetObject --> S3 product CSV
 `server/shoe_data_source.ts`に集約しています。ピックアップリストの照合とExcel生成は
 `server/pickup_list.ts`、在庫取得とキャッシュは`server/store_inventory_data_source.ts`が担当します。
 
-ログイン前は認証画面だけを表示します。ユーザー名とPBKDF2-SHA256パスワードハッシュは
-Secrets ManagerからECSの環境変数へ注入し、パスワードの平文は保存しません。認証後は署名と
+ログイン前は認証画面だけを表示します。ユーザー名とPBKDF2-SHA256パスワードハッシュは Secrets
+ManagerからECSの環境変数へ注入し、パスワードの平文は保存しません。認証後は署名と
 有効期限を持つHttpOnly Cookieを発行します。商品API、Excel API、セッションAPIはこのCookieが
 ないリクエストを拒否します。ヘルスチェックだけはロードバランサーから利用できるよう公開します。
 
