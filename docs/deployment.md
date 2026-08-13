@@ -45,23 +45,24 @@ TerraformはECSタスクロールへ、指定バケットの商品CSVと店舗�
 
 ## アプリケーション更新
 
-環境変数を設定し、スクリプトを実行します。イメージタグには上書き可能な `latest`
-ではなく、コミットIDなど一意の値を指定します。
+ルートの`Makefile`から実行します。イメージタグは現在のコミットIDが既定値です。
+AWSアカウントIDは指定したプロファイルから自動取得します。
 
 ```bash
-set -a
-source .env
-set +a
-export AWS_PROFILE=your-profile
-export AWS_REGION=ap-northeast-1
-export AWS_ACCOUNT_ID=123456789012
-export SHOE_DATA_BUCKET=scanalytics-report
-export IMAGE_TAG=$(git rev-parse --short HEAD)
-./deploy/deploy.sh
+make deploy
 ```
 
-スクリプトはDockerイメージを `linux/amd64`
-向けにビルドしてECRへ送信し、ECSのタスク定義を更新してサービスの安定化まで待機します。
+プロファイル、リージョン、イメージタグを変更する場合はMake変数で指定します。
+
+```bash
+make deploy \
+  AWS_PROFILE=your-profile \
+  AWS_REGION=ap-northeast-1 \
+  IMAGE_TAG=$(git rev-parse --short HEAD)
+```
+
+`make deploy`はDockerイメージを`linux/amd64`向けにビルドしてECRへ送信し、Secrets Managerの
+認証情報を参照するECSタスク定義を登録します。その後、ECSサービスを更新して安定化まで待機します。
 
 ## ローカル開発
 
