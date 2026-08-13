@@ -1,6 +1,7 @@
 {
   "nodeModulesDir": "auto",
   "imports": {
+    "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@3.1109.0",
     "@hono/zod-validator": "npm:@hono/zod-validator@^0.7.6",
     "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.18",
     "@vitejs/plugin-react": "npm:@vitejs/plugin-react@^6.0.1",
@@ -31,7 +32,7 @@
     "check": "deno fmt --check && deno lint && deno check client/src/main.tsx server/main.ts server/docker.ts",
     "test": "deno test -A",
     "build": "deno run -A scripts/build.ts",
-    "start": "deno run --env-file=.env --allow-net --allow-read=dist/client --allow-env dist/docker.js"
+    "start": "deno run --env-file=.env --allow-net --allow-read=dist/client,dist/data --allow-env --allow-sys=osRelease dist/docker.js"
   },
   "fmt": {
     "lineWidth": 100,

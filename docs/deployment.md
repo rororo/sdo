@@ -14,6 +14,7 @@ cp .env.example .env
 ```
 
 `.env`の`APP_USER`と`APP_PASSWORD`を変更してください。十分に長いパスワードを使用します。
+`AWS_REGION`と`SHOE_DATA_BUCKET`は通常、例の値をそのまま利用できます。
 
 ## インフラ作成
 
@@ -37,6 +38,9 @@ terraform -chdir=terraform plan
 terraform -chdir=terraform apply
 ```
 
+TerraformはECSタスクロールへ、指定バケットの`sdo/shoe_products/*`だけを読み取れる
+`s3:GetObject`権限を設定します。アクセスキーはコンテナへ渡さず、ECSタスクロールを使用します。
+
 ## アプリケーション更新
 
 環境変数を設定し、スクリプトを実行します。イメージタグには上書き可能な `latest`
@@ -49,6 +53,7 @@ set +a
 export AWS_PROFILE=your-profile
 export AWS_REGION=ap-northeast-1
 export AWS_ACCOUNT_ID=123456789012
+export SHOE_DATA_BUCKET=scanalytics-report
 export IMAGE_TAG=$(git rev-parse --short HEAD)
 ./deploy/deploy.sh
 ```
@@ -66,6 +71,12 @@ deno task dev
 
 画面は `http://localhost:5173`、APIは `http://localhost:8000`
 で起動します。確認コマンドは次のとおりです。
+
+ローカルではAWS SDKが`.env`の`AWS_PROFILE`を使用して`~/.aws/config`と
+`~/.aws/credentials`から認証情報を読み取ります。初期値は`xebio`です。別のプロファイルを使う場合は
+`.env`だけを変更してください。特定キーで確認する場合だけ`.env`の`SHOE_DATA_KEY`を設定します。
+本番では`AWS_PROFILE`と`SHOE_DATA_KEY`を設定せず、ECSタスクロールとJSTの現在月から計算したキーを
+使用します。
 
 ```bash
 deno task check

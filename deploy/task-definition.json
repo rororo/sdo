@@ -12,6 +12,10 @@
       "image": "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/excel-transformer:${IMAGE_TAG}",
       "essential": true,
       "portMappings": [{ "containerPort": 8000, "hostPort": 8000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "AWS_REGION", "value": "${AWS_REGION}" },
+        { "name": "SHOE_DATA_BUCKET", "value": "scanalytics-report" }
+      ],
       "healthCheck": {
         "command": [
           "CMD-SHELL",

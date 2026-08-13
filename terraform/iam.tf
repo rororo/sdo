@@ -29,3 +29,16 @@ resource "aws_iam_role" "ecs_task" {
   })
 }
 
+resource "aws_iam_role_policy" "ecs_task_shoe_data" {
+  name = "${var.project_name}-shoe-data-read"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:GetObject"]
+      Resource = "arn:aws:s3:::${var.shoe_data_bucket}/sdo/shoe_products/*"
+    }]
+  })
+}

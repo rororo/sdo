@@ -22,6 +22,12 @@ variable "desired_count" {
   default     = 1
 }
 
+variable "shoe_data_bucket" {
+  description = "S3 bucket containing the shoe product CSV"
+  type        = string
+  default     = "scanalytics-report"
+}
+
 variable "allowed_ipv4_cidrs" {
   description = "IPv4 CIDRs allowed by the CloudFront WAF"
   type        = list(string)

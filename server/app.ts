@@ -9,17 +9,31 @@ import {
   verifySessionToken,
   writeSessionCookie,
 } from './auth.ts';
-import { transformWorkbook, WorkbookValidationError } from './transformer.ts';
+import {
+  createShoeDataSource,
+  type ShoeDataSource,
+  ShoeDataSourceError,
+} from './shoe_data_source.ts';
+import { createShoeMasterWorkbook, WorkbookValidationError } from './transformer.ts';
 
-const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const EXCEL_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 100;
 
-function outputFilename(input: string): string {
-  const stem = input.replace(/\.xlsx$/i, '') || 'workbook';
-  return `${stem}_master_data.xlsx`;
+function positiveInteger(value: string | undefined, fallback: number, maximum: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, maximum) : fallback;
 }
 
-export function createApp(auth: AuthConfig = loadAuthConfig()) {
+function outputFilename(key: string): string {
+  const period = /kiukkn=([^/]+)/.exec(key)?.[1] ?? 'current';
+  return `shoe_master_${period}.xlsx`;
+}
+
+export function createApp(
+  auth: AuthConfig = loadAuthConfig(),
+  shoeDataSource: ShoeDataSource = createShoeDataSource(),
+) {
   const app = new Hono();
 
   app.get('/health', (context) => context.json({ status: 'ok' }));
@@ -60,40 +74,57 @@ export function createApp(auth: AuthConfig = loadAuthConfig()) {
     return context.json({ authenticated: false });
   });
 
-  app.post('/api/transform', async (context) => {
-    const contentLength = Number(context.req.header('content-length') ?? 0);
-    if (contentLength > MAX_UPLOAD_BYTES + 1024 * 1024) {
-      return context.json({ error: 'ファイルサイズは20MB以下にしてください。' }, 413);
-    }
-
-    let form: FormData;
+  app.get('/api/shoes', async (context) => {
+    const page = positiveInteger(context.req.query('page'), 1, Number.MAX_SAFE_INTEGER);
+    const pageSize = positiveInteger(
+      context.req.query('pageSize'),
+      DEFAULT_PAGE_SIZE,
+      MAX_PAGE_SIZE,
+    );
     try {
-      form = await context.req.raw.formData();
-    } catch {
-      return context.json({ error: 'アップロード内容を読み込めませんでした。' }, 400);
+      const dataset = await shoeDataSource.getDataset();
+      const total = dataset.records.length;
+      const pageCount = Math.max(1, Math.ceil(total / pageSize));
+      const resolvedPage = Math.min(page, pageCount);
+      const start = (resolvedPage - 1) * pageSize;
+      context.header('Cache-Control', 'no-store');
+      return context.json({
+        records: dataset.records.slice(start, start + pageSize),
+        total,
+        page: resolvedPage,
+        pageSize,
+        pageCount,
+        source: {
+          bucket: dataset.bucket,
+          key: dataset.key,
+          etag: dataset.etag,
+          lastModified: dataset.lastModified,
+          loadedAt: dataset.loadedAt,
+        },
+      });
+    } catch (error) {
+      if (error instanceof WorkbookValidationError) {
+        return context.json({ error: error.message }, 422);
+      }
+      if (error instanceof ShoeDataSourceError) {
+        return context.json({ error: error.message }, 502);
+      }
+      return context.json({ error: '商品データを読み込めませんでした。' }, 500);
     }
+  });
 
-    const file = form.get('file');
-    if (!(file instanceof File)) {
-      return context.json({ error: 'Excelファイルを選択してください。' }, 400);
-    }
-    if (!file.name.toLowerCase().endsWith('.xlsx')) {
-      return context.json({ error: '.xlsx ファイルを選択してください。' }, 415);
-    }
-    if (file.size === 0) return context.json({ error: 'ファイルが空です。' }, 400);
-    if (file.size > MAX_UPLOAD_BYTES) {
-      return context.json({ error: 'ファイルサイズは20MB以下にしてください。' }, 413);
-    }
-
+  app.get('/api/shoes.xlsx', async (context) => {
     try {
-      const transformed = await transformWorkbook(new Uint8Array(await file.arrayBuffer()));
+      const dataset = await shoeDataSource.getDataset();
+      const transformed = await createShoeMasterWorkbook(dataset.records);
       return new Response(Uint8Array.from(transformed.bytes).buffer, {
         status: 200,
         headers: {
           'Content-Type': EXCEL_CONTENT_TYPE,
           'Content-Disposition': `attachment; filename*=UTF-8''${
-            encodeURIComponent(outputFilename(file.name))
+            encodeURIComponent(outputFilename(dataset.key))
           }`,
+          'Cache-Control': 'no-store',
           'X-Content-Type-Options': 'nosniff',
           'X-Processed-Rows': String(transformed.processedRows),
         },
@@ -102,10 +133,10 @@ export function createApp(auth: AuthConfig = loadAuthConfig()) {
       if (error instanceof WorkbookValidationError) {
         return context.json({ error: error.message }, 422);
       }
-      return context.json(
-        { error: 'Excelファイルを読み込めませんでした。内容を確認してください。' },
-        422,
-      );
+      if (error instanceof ShoeDataSourceError) {
+        return context.json({ error: error.message }, 502);
+      }
+      return context.json({ error: 'Excelファイルを生成できませんでした。' }, 500);
     }
   });
 

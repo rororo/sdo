@@ -1,7 +1,7 @@
 # Scanalytics ETLからのSDO入力データ
 
-SDOで利用するシューズ商品データと店舗在庫データは、
-`scanalytics_report_etl` のLambdaがRedshiftから抽出し、S3へ毎日出力する。
+SDOで利用するシューズ商品データと店舗在庫データは、 `scanalytics_report_etl`
+のLambdaがRedshiftから抽出し、S3へ1時間ごとに出力する。
 
 ## 商品CSV
 
@@ -16,7 +16,8 @@ s3://scanalytics-report/sdo/shoe_products/kiukkn=202609_202703/shoe_products.csv
 ```
 
 - CSVはSDOのシューズマスタ変換に必要な13列を持つ。
-- 列順は `部門, 部門名, 品種, 品種名, 品目, 品目名, 自社品番, ブランド,
+- 列順は
+  `部門, 部門名, 品種, 品種名, 品目, 品目名, 自社品番, ブランド,
   スキャンコード(JAN), メーカー品番, 商品名(EN), Size, SizeSys`。
 - `EC商品コード`は現行CSVに含まれない。
 - 期区分はJSTの実行月から決まる。
@@ -39,7 +40,7 @@ s3://scanalytics-report/sdo/shoe_store_inventory/shoe_store_inventory.csv
 - バケット: `scanalytics-report`
 - 形式: ヘッダー付きCSV
 - 文字コード: UTF-8 BOM付き
-- 更新: 毎日15:15 JST
+- 更新: 毎時15分 (JST)
 - 出力Lambda: `scanalytics-report-redshift-report-downloader`
 - Lambdaイベント: `{"job":"sdo"}`
 

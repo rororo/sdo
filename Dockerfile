@@ -13,4 +13,4 @@ WORKDIR /app
 COPY --from=builder --chown=deno:deno /app/dist ./dist
 USER deno
 EXPOSE 8000
-CMD ["run", "--allow-net", "--allow-read=dist/client", "--allow-env", "dist/docker.js"]
+CMD ["run", "--allow-net", "--allow-read=dist/client,dist/data", "--allow-env", "--allow-sys=osRelease", "dist/docker.js"]

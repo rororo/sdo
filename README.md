@@ -1,17 +1,35 @@
-# シューズマスタ変換
+# シューズ商品データ
 
-抽出データのExcelファイルをブラウザ上で登録用シューズマスタへ変換し、結果をすぐに
-ダウンロードできる業務ツールです。
+S3へ日次連携されるシューズ商品CSVを、ログイン後の画面に常時表示する業務アプリケーションです。
+対象期はJSTの現在月から自動判定します。
 
-- `.xlsx` ファイルのドラッグ＆ドロップアップロード
 - ユーザー名とパスワードによるログイン
-- ログアウトと有効期限付きセッション
-- ファイル形式とサイズの検証
-- 固定の部門・品種・品目マスタによる変換
-- 変換済みワークブックの自動ダウンロード
+- S3の商品CSVを50件単位で一覧表示
+- 画面表示時の自動取得と1時間のサーバーメモリキャッシュ
+- CSVで管理する固定の部門・品種・品目マスタによる変換
+- 登録形式21列のExcelダウンロード
+- Reactの画面とHono APIを1つのDeno/Dockerコンテナで実行
 
-入力13列から登録形式の21列を生成します。変換規則とエラー条件は
-[`docs/shoes-master-spec.md`](docs/shoes-master-spec.md) を参照してください。
+データの参照先は [`docs/scanalytics-sdo-data.md`](docs/scanalytics-sdo-data.md)、変換規則と
+エラー条件は [`docs/shoes-master-spec.md`](docs/shoes-master-spec.md) を参照してください。
 
-Scanalytics ETLがS3へ出力する商品・店舗在庫CSVの参照先は
-[`docs/scanalytics-sdo-data.md`](docs/scanalytics-sdo-data.md) を参照してください。
+固定マスタは `server/data/department_item_master.csv` で管理します。CSVを変更した場合も
+アプリケーションコードの変更は不要です。
+
+## ローカル起動
+
+```bash
+cp .env.example .env
+deno install
+deno task dev
+```
+
+`.env`の`APP_USER`、`APP_PASSWORD`と、S3を読み取れるローカルの`AWS_PROFILE`を設定します。
+このリポジトリの初期値は`xebio`です。画面は
+`http://localhost:5173`、APIは`http://localhost:8000`で起動します。
+
+```bash
+deno task check
+deno task test
+deno task build
+```

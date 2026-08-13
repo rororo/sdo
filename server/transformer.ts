@@ -1,11 +1,10 @@
-import ExcelJS from 'exceljs';
 import archiver from 'archiver';
 import { Buffer } from 'node:buffer';
 import { PassThrough } from 'node:stream';
+import { parseCsv } from './csv.ts';
 import { DEPARTMENT_ITEM_MASTER } from './department_item_master.ts';
 
 const OUTPUT_SHEET_NAME = 'Master Data2026FW②';
-const HEADER_SCAN_LIMIT = 100;
 
 export const SOURCE_HEADERS = [
   '部門',
@@ -97,10 +96,37 @@ const OUTPUT_WIDTHS = [
 
 type OutputValue = string | number | boolean | Date | null;
 
-interface SourceLocation {
-  sheet: ExcelJS.Worksheet;
-  headerRow: number;
+export interface ShoeProductRecord {
+  department: string;
+  departmentName: string;
+  category: string;
+  categoryName: string;
+  item: string;
+  itemName: string;
+  internalCode: string;
+  brand: string;
+  ean: string;
+  manufacturerModel: string;
+  commercialName: string;
+  size: string;
+  sizeSystem: string;
 }
+
+export const SHOE_PRODUCT_FIELDS = [
+  { key: 'department', label: '部門' },
+  { key: 'departmentName', label: '部門名' },
+  { key: 'category', label: '品種' },
+  { key: 'categoryName', label: '品種名' },
+  { key: 'item', label: '品目' },
+  { key: 'itemName', label: '品目名' },
+  { key: 'internalCode', label: '自社品番' },
+  { key: 'brand', label: 'ブランド' },
+  { key: 'ean', label: 'スキャンコード(JAN)' },
+  { key: 'manufacturerModel', label: 'メーカー品番' },
+  { key: 'commercialName', label: '商品名(EN)' },
+  { key: 'size', label: 'Size' },
+  { key: 'sizeSystem', label: 'SizeSys' },
+] as const satisfies readonly { key: keyof ShoeProductRecord; label: string }[];
 
 export interface TransformResult {
   bytes: Uint8Array;
@@ -112,17 +138,6 @@ export class WorkbookValidationError extends Error {
     super(message);
     this.name = 'WorkbookValidationError';
   }
-}
-
-function effectiveValue(cell: ExcelJS.Cell): unknown {
-  const value = cell.value;
-  if (value === undefined || value === null) return null;
-  if (value instanceof Date) return value;
-  if (typeof value !== 'object') return value;
-  if ('result' in value) return value.result ?? null;
-  if ('richText' in value) return value.richText.map((part) => part.text).join('');
-  if ('text' in value) return value.text;
-  return value;
 }
 
 function scalarValue(value: unknown): OutputValue {
@@ -142,24 +157,6 @@ function excelString(value: unknown): string {
 
 function normalizedHeader(value: unknown): string {
   return excelString(value).normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function findSource(workbook: ExcelJS.Workbook): SourceLocation {
-  for (const sheet of workbook.worksheets) {
-    const lastCandidate = Math.min(sheet.actualRowCount, HEADER_SCAN_LIMIT);
-    for (let rowNumber = 1; rowNumber <= lastCandidate; rowNumber++) {
-      const matches = SOURCE_HEADERS.every((expected, index) =>
-        normalizedHeader(effectiveValue(sheet.getCell(rowNumber, index + 1))) ===
-          normalizedHeader(expected)
-      );
-      if (matches) return { sheet, headerRow: rowNumber };
-    }
-  }
-  throw new WorkbookValidationError(
-    `入力列が見つかりません。A列から順に「${
-      SOURCE_HEADERS.join('、')
-    }」を含むシートを確認してください。`,
-  );
 }
 
 function codePart(value: unknown, label: string, sheetRow: number): string {
@@ -191,10 +188,6 @@ function formatEan(value: unknown, sheetRow: number): string {
     }
   }
   return digits.padStart(13, '0');
-}
-
-function hasSourceData(values: readonly unknown[]): boolean {
-  return values.some((value) => value !== null && value !== undefined && value !== '');
 }
 
 function convertedValues(values: readonly unknown[], rowNumber: number): OutputValue[] {
@@ -233,6 +226,87 @@ function convertedValues(values: readonly unknown[], rowNumber: number): OutputV
     null,
     null,
   ];
+}
+
+function sourceValues(record: ShoeProductRecord): OutputValue[] {
+  const numericSize = /^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(record.size.trim())
+    ? Number(record.size)
+    : record.size;
+  return [
+    record.department,
+    record.departmentName,
+    record.category,
+    record.categoryName,
+    record.item,
+    record.itemName,
+    record.internalCode,
+    record.brand,
+    record.ean,
+    record.manufacturerModel,
+    record.commercialName,
+    numericSize,
+    record.sizeSystem,
+  ];
+}
+
+export function parseShoeProductCsv(text: string): ShoeProductRecord[] {
+  const records = parseCsv(text, '商品CSV');
+  const header = records.shift();
+  if (
+    !header || header.length !== SOURCE_HEADERS.length ||
+    header.some((value, index) =>
+      normalizedHeader(value) !== normalizedHeader(SOURCE_HEADERS[index])
+    )
+  ) {
+    throw new WorkbookValidationError(
+      `商品CSVのヘッダーは「${SOURCE_HEADERS.join('、')}」の順にしてください。`,
+    );
+  }
+
+  const products: ShoeProductRecord[] = [];
+  records.forEach((record, index) => {
+    const csvRow = index + 2;
+    if (record.length !== SOURCE_HEADERS.length) {
+      throw new WorkbookValidationError(
+        `商品CSVの${csvRow}行目は${SOURCE_HEADERS.length}列必要です。`,
+      );
+    }
+    const [
+      department,
+      departmentName,
+      category,
+      categoryName,
+      item,
+      itemName,
+      internalCode,
+      brand,
+      ean,
+      manufacturerModel,
+      commercialName,
+      size,
+      sizeSystem,
+    ] = record;
+    products.push({
+      department: department!,
+      departmentName: departmentName!,
+      category: category!,
+      categoryName: categoryName!,
+      item: item!,
+      itemName: itemName!,
+      internalCode: internalCode!,
+      brand: brand!,
+      ean: ean!,
+      manufacturerModel: manufacturerModel!,
+      commercialName: commercialName!,
+      size: size!,
+      sizeSystem: sizeSystem!,
+    });
+  });
+
+  if (products.length === 0) {
+    throw new WorkbookValidationError('商品CSVに変換対象のデータ行がありません。');
+  }
+  return products;
 }
 
 function escapeXml(value: string): string {
@@ -398,27 +472,24 @@ async function createOutputWorkbook(rows: readonly OutputValue[][]): Promise<Uin
   return new Uint8Array(Buffer.concat(chunks));
 }
 
-export async function transformWorkbook(source: Uint8Array): Promise<TransformResult> {
-  const inputWorkbook = new ExcelJS.Workbook();
-  const input = Buffer.from(source) as unknown as Parameters<typeof inputWorkbook.xlsx.load>[0];
-  await inputWorkbook.xlsx.load(input);
-
-  const { sheet: sourceSheet, headerRow } = findSource(inputWorkbook);
-  const rows: OutputValue[][] = [];
-  const lastSourceRow = sourceSheet.actualRowCount;
-  for (let rowNumber = headerRow + 1; rowNumber <= lastSourceRow; rowNumber++) {
-    const values = Array.from(
-      { length: SOURCE_HEADERS.length },
-      (_, index) => effectiveValue(sourceSheet.getCell(rowNumber, index + 1)),
-    );
-    if (!hasSourceData(values)) continue;
-    rows.push(convertedValues(values, rowNumber));
+export async function createShoeMasterWorkbook(
+  products: readonly ShoeProductRecord[],
+): Promise<TransformResult> {
+  if (products.length === 0) {
+    throw new WorkbookValidationError('商品CSVに変換対象のデータ行がありません。');
   }
-
-  if (rows.length === 0) {
-    throw new WorkbookValidationError('変換対象のデータ行がありません。');
-  }
-
+  const rows = products.map((product, index) => convertedValues(sourceValues(product), index + 2));
   const bytes = await createOutputWorkbook(rows);
   return { bytes, processedRows: rows.length };
+}
+
+export function validateShoeProducts(products: readonly ShoeProductRecord[]): void {
+  if (products.length === 0) {
+    throw new WorkbookValidationError('商品CSVに変換対象のデータ行がありません。');
+  }
+  products.forEach((product, index) => convertedValues(sourceValues(product), index + 2));
+}
+
+export async function transformShoeProductCsv(text: string): Promise<TransformResult> {
+  return await createShoeMasterWorkbook(parseShoeProductCsv(text));
 }

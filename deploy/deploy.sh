@@ -14,6 +14,7 @@ fi
 : "${IMAGE_TAG:?IMAGE_TAG is required and must be unique}"
 : "${APP_USER:?APP_USER is required}"
 : "${APP_PASSWORD:?APP_PASSWORD is required}"
+SHOE_DATA_BUCKET="${SHOE_DATA_BUCKET:-scanalytics-report}"
 
 export AWS_PAGER=""
 repository="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/excel-transformer"
@@ -32,9 +33,13 @@ task_definition="$(
     jq \
       --arg app_user "${APP_USER}" \
       --arg app_password "${APP_PASSWORD}" \
+      --arg aws_region "${AWS_REGION}" \
+      --arg shoe_data_bucket "${SHOE_DATA_BUCKET}" \
       '.containerDefinitions[0].environment = [
         {"name": "APP_USER", "value": $app_user},
-        {"name": "APP_PASSWORD", "value": $app_password}
+        {"name": "APP_PASSWORD", "value": $app_password},
+        {"name": "AWS_REGION", "value": $aws_region},
+        {"name": "SHOE_DATA_BUCKET", "value": $shoe_data_bucket}
       ]'
 )"
 

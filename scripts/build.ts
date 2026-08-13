@@ -25,3 +25,9 @@ for (
     },
   });
 }
+
+await Deno.mkdir('dist/data', { recursive: true });
+await Deno.copyFile(
+  'server/data/department_item_master.csv',
+  'dist/data/department_item_master.csv',
+);

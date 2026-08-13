@@ -32,7 +32,9 @@ resource "aws_ecs_task_definition" "app" {
     }]
     environment = [
       { name = "APP_USER", value = var.app_user },
-      { name = "APP_PASSWORD", value = var.app_password }
+      { name = "APP_PASSWORD", value = var.app_password },
+      { name = "AWS_REGION", value = var.aws_region },
+      { name = "SHOE_DATA_BUCKET", value = var.shoe_data_bucket }
     ]
     healthCheck = {
       command     = ["CMD-SHELL", "deno eval --allow-net=127.0.0.1 \"const r=await fetch('http://127.0.0.1:8000/health');if(!r.ok)Deno.exit(1)\""]
