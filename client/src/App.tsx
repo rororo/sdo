@@ -937,7 +937,7 @@ export function App() {
                   <span>{pickupFile ? formatFileSize(pickupFile.size) : ''}</span>
                   <label className='secondary-file-button'>
                     <RefreshIcon />
-                    <span>別のファイルを選択</span>
+                    <span>別ファイルを選ぶ</span>
                     <input type='file' accept='.xlsx' onChange={selectPickupFile} />
                   </label>
                 </div>
@@ -948,11 +948,15 @@ export function App() {
                   <h1 id='pickup-file-title'>Excelファイルをドロップ、または選択</h1>
                   <p>画面のどこへドロップしても受け付けます。.xlsx 形式、1ファイル、20MBまで。</p>
                   <div className='upload-actions'>
-                    <label className='file-button'>
-                      <svg className='button-icon' aria-hidden='true' viewBox='0 0 16 16'>
-                        <path d='M2.5 12.5v-8A1.5 1.5 0 0 1 4 3h2.2l1.2 1.6H12a1.5 1.5 0 0 1 1.5 1.5v6.4A1.5 1.5 0 0 1 12 14H4a1.5 1.5 0 0 1-1.5-1.5Z' />
-                      </svg>
-                      <span>ファイルを選択</span>
+                    <label className={pickupFile ? 'secondary-file-button' : 'file-button'}>
+                      {pickupFile
+                        ? <RefreshIcon />
+                        : (
+                          <svg className='button-icon' aria-hidden='true' viewBox='0 0 16 16'>
+                            <path d='M2.5 12.5v-8A1.5 1.5 0 0 1 4 3h2.2l1.2 1.6H12a1.5 1.5 0 0 1 1.5 1.5v6.4A1.5 1.5 0 0 1 12 14H4a1.5 1.5 0 0 1-1.5-1.5Z' />
+                          </svg>
+                        )}
+                      <span>{pickupFile ? '別ファイルを選ぶ' : 'ファイルを選択'}</span>
                       <input type='file' accept='.xlsx' onChange={selectPickupFile} />
                     </label>
                     {pickupFile && (

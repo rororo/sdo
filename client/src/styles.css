@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
-  --navy: #0b2d5c;
-  --blue: #1656a3;
+  --primary: #0b2d5c;
+  --primary-hover: #143e75;
   --red: #c4151c;
   --ink: #18181b;
   --muted: #667085;
@@ -60,7 +60,7 @@ button:focus-visible,
 input:focus-visible,
 a:focus-visible,
 tr:focus-visible {
-  outline: 2px solid var(--blue);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -112,7 +112,7 @@ tr:focus-visible {
   flex: none;
   justify-content: flex-end;
   overflow: hidden;
-  background: var(--navy);
+  background: var(--primary);
 }
 
 .brand-line span {
@@ -197,7 +197,7 @@ tr:focus-visible {
 .auth-shell > .spinner {
   width: 18px;
   height: 18px;
-  color: var(--blue);
+  color: var(--primary);
 }
 
 .login-card {
@@ -256,8 +256,8 @@ tr:focus-visible {
 
 .login-form > input:focus,
 .password-field input:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgb(22 86 163 / 14%);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgb(11 45 92 / 14%);
 }
 
 .password-field {
@@ -299,7 +299,7 @@ tr:focus-visible {
   border: 0;
   border-radius: 6px;
   color: #fff;
-  background: var(--blue);
+  background: var(--primary);
   font-size: 13.5px;
   font-weight: 700;
   letter-spacing: .06em;
@@ -307,7 +307,7 @@ tr:focus-visible {
 }
 
 .login-button:hover:not(:disabled) {
-  background: #12467f;
+  background: var(--primary-hover);
 }
 
 .login-button:active:not(:disabled) {
@@ -406,7 +406,7 @@ tr:focus-visible {
 }
 
 .view-switcher a.active {
-  color: var(--navy);
+  color: var(--primary);
   font-weight: 600;
 }
 
@@ -416,7 +416,7 @@ tr:focus-visible {
   bottom: 0;
   left: 9px;
   height: 2px;
-  background: var(--navy);
+  background: var(--primary);
   content: '';
 }
 
@@ -515,7 +515,7 @@ tr:focus-visible {
 .avatar-button:hover,
 .avatar-button.active {
   border-color: #a8b6cc;
-  color: var(--navy);
+  color: var(--primary);
   background: #eef1f6;
 }
 
@@ -663,23 +663,6 @@ th {
   letter-spacing: .05em;
 }
 
-.product-table th:first-child,
-.product-table td:first-child {
-  position: sticky;
-  left: 0;
-  border-right: 1px solid var(--line);
-  box-shadow: 8px 0 8px -8px rgb(24 24 27 / 10%);
-}
-
-.product-table th:first-child {
-  z-index: 3;
-}
-
-.product-table td:first-child {
-  z-index: 1;
-  background: inherit;
-}
-
 tbody tr:nth-child(even) {
   background: #fcfcfc;
 }
@@ -736,7 +719,7 @@ tbody tr:focus-visible {
   display: block;
   width: 40%;
   height: 100%;
-  background: var(--blue);
+  background: var(--primary);
   animation: progress-slide .9s ease-in-out infinite alternate;
 }
 
@@ -926,9 +909,9 @@ tbody tr:focus-visible {
 }
 
 .pagination button.current {
-  border-color: var(--navy);
+  border-color: var(--primary);
   color: #fff;
-  background: var(--navy);
+  background: var(--primary);
   font-weight: 600;
   cursor: default;
 }
@@ -1025,31 +1008,32 @@ tbody tr:focus-visible {
 }
 
 .file-button {
-  border: 1px solid var(--navy);
+  border: 1px solid var(--primary);
   color: #fff;
-  background: var(--navy);
+  background: var(--primary);
   font-weight: 500;
   cursor: pointer;
 }
 
 .file-button:hover {
-  background: #143e75;
+  background: var(--primary-hover);
 }
 
 .confirm-button {
   border: 1px solid transparent;
   color: #fff;
-  background: var(--red);
+  background: var(--primary);
   font-weight: 700;
   letter-spacing: .04em;
 }
 
 .confirm-button:hover:not(:disabled) {
-  background: #a91117;
+  background: var(--primary-hover);
 }
 
 .confirm-button:disabled {
-  background: #ebc4c6;
+  color: #85858e;
+  background: #e9e9ec;
 }
 
 .file-button input,
