@@ -1179,28 +1179,17 @@ tbody tr:focus-visible {
   font-size: 11px;
 }
 
-.pickup-preview-table th:nth-child(-n+6),
-.pickup-preview-table td:nth-child(-n+6) {
-  color: #98a2b3;
-  background: #fafbfc;
-}
-
-.pickup-preview-table th:nth-child(6),
-.pickup-preview-table td:nth-child(6) {
-  border-right: 2px solid #d5dae2;
-}
-
-.pickup-preview-table th:nth-child(7),
-.pickup-preview-table td:nth-child(7) {
+.pickup-preview-table th:nth-child(1),
+.pickup-preview-table td:nth-child(1) {
   text-align: right;
 }
 
-.pickup-preview-table th:nth-child(8),
-.pickup-preview-table th:nth-child(10),
-.pickup-preview-table th:nth-child(17),
-.pickup-preview-table td:nth-child(8),
-.pickup-preview-table td:nth-child(10),
-.pickup-preview-table td:nth-child(17) {
+.pickup-preview-table th:nth-child(2),
+.pickup-preview-table th:nth-child(4),
+.pickup-preview-table th:nth-child(11),
+.pickup-preview-table td:nth-child(2),
+.pickup-preview-table td:nth-child(4),
+.pickup-preview-table td:nth-child(11) {
   text-align: center;
 }
 

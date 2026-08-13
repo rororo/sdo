@@ -60,12 +60,6 @@ const SHOE_FIELDS = [
 
 const SHOE_COLUMN_WIDTHS = [62, 116, 62, 116, 62, 130, 112, 132, 142, 128, 230, 60, 74];
 const PICKUP_COLUMN_WIDTHS = [
-  92,
-  92,
-  92,
-  92,
-  92,
-  92,
   54,
   58,
   112,
@@ -1009,7 +1003,7 @@ export function App() {
                       <table className='pickup-preview-table'>
                         <thead>
                           <tr>
-                            {pickupConfirmation.headers.map((header, index) => (
+                            {pickupConfirmation.headers.slice(6).map((header, index) => (
                               <th
                                 key={`${header}-${index}`}
                                 scope='col'
@@ -1026,13 +1020,13 @@ export function App() {
                         <tbody>
                           {pickupConfirmation.rows.map((row, rowIndex) => (
                             <tr key={`pickup-output-${rowIndex}`} tabIndex={0}>
-                              {row.map((value, columnIndex) => (
+                              {row.slice(6).map((value, columnIndex) => (
                                 <td
                                   key={`${rowIndex}-${columnIndex}`}
                                   title={String(value)}
-                                  className={columnIndex === 6 || columnIndex === 7 ||
-                                      columnIndex === 9 || columnIndex === 10 ||
-                                      columnIndex === 15 || columnIndex === 16
+                                  className={columnIndex === 0 || columnIndex === 1 ||
+                                      columnIndex === 3 || columnIndex === 4 ||
+                                      columnIndex === 9 || columnIndex === 10
                                     ? 'mono-cell'
                                     : ''}
                                 >
