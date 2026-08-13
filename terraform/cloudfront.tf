@@ -46,7 +46,8 @@ resource "aws_cloudfront_distribution" "app" {
   price_class     = "PriceClass_200"
   http_version    = "http2and3"
   is_ipv6_enabled = true
-  web_acl_id      = aws_wafv2_web_acl.app.arn
+  # IP restriction is temporarily disabled. Restore this association to enable it again.
+  # web_acl_id = aws_wafv2_web_acl.app.arn
 
   origin {
     domain_name = aws_lb.app.dns_name

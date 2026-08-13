@@ -12,8 +12,6 @@ fi
 : "${AWS_REGION:?AWS_REGION is required}"
 : "${AWS_ACCOUNT_ID:?AWS_ACCOUNT_ID is required}"
 : "${IMAGE_TAG:?IMAGE_TAG is required and must be unique}"
-: "${APP_USER:?APP_USER is required}"
-: "${APP_PASSWORD:?APP_PASSWORD is required}"
 SHOE_DATA_BUCKET="${SHOE_DATA_BUCKET:-scanalytics-report}"
 
 export AWS_PAGER=""
@@ -24,6 +22,15 @@ aws ecr get-login-password --region "${AWS_REGION}" --profile "${AWS_PROFILE}" |
   docker login --username AWS --password-stdin "${repository}"
 docker push "${repository}:${IMAGE_TAG}"
 
+auth_secret_arn="$(
+  aws secretsmanager describe-secret \
+    --secret-id excel-transformer/auth \
+    --region "${AWS_REGION}" \
+    --profile "${AWS_PROFILE}" \
+    --query ARN \
+    --output text
+)"
+
 task_definition="$(
   sed \
     -e "s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" \
@@ -31,15 +38,16 @@ task_definition="$(
     -e "s/\${IMAGE_TAG}/${IMAGE_TAG}/g" \
     deploy/task-definition.json |
     jq \
-      --arg app_user "${APP_USER}" \
-      --arg app_password "${APP_PASSWORD}" \
       --arg aws_region "${AWS_REGION}" \
       --arg shoe_data_bucket "${SHOE_DATA_BUCKET}" \
+      --arg auth_secret_arn "${auth_secret_arn}" \
       '.containerDefinitions[0].environment = [
-        {"name": "APP_USER", "value": $app_user},
-        {"name": "APP_PASSWORD", "value": $app_password},
         {"name": "AWS_REGION", "value": $aws_region},
         {"name": "SHOE_DATA_BUCKET", "value": $shoe_data_bucket}
+      ] |
+      .containerDefinitions[0].secrets = [
+        {"name": "APP_USER", "valueFrom": ($auth_secret_arn + ":APP_USER::")},
+        {"name": "APP_PASSWORD_HASH", "valueFrom": ($auth_secret_arn + ":APP_PASSWORD_HASH::")}
       ]'
 )"
 

@@ -27,7 +27,8 @@ deno install
 deno task dev
 ```
 
-`.env`の`APP_USER`、`APP_PASSWORD`と、S3を読み取れるローカルの`AWS_PROFILE`を設定します。
+`.env`の`APP_USER`、`APP_PASSWORD_HASH`と、S3を読み取れるローカルの`AWS_PROFILE`を設定します。
+パスワードの平文は保存せず、PBKDF2-SHA256ハッシュだけを管理します。
 このリポジトリの初期値は`xebio`です。画面は
 商品一覧は`http://localhost:5173/products`、ピックアップリストは
 `http://localhost:5173/pickup-list`、APIは`http://localhost:8000`で起動します。

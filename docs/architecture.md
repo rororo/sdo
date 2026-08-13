@@ -32,10 +32,10 @@ Browser -- GET /api/shoes ------> Hono API -- GetObject --> S3 product CSV
 `server/shoe_data_source.ts`に集約しています。ピックアップリストの照合とExcel生成は
 `server/pickup_list.ts`、在庫取得とキャッシュは`server/store_inventory_data_source.ts`が担当します。
 
-ログイン前は認証画面だけを表示します。ユーザー名とパスワードは実行環境の環境変数から読み込み、
-認証後は署名と有効期限を持つHttpOnly Cookieを発行します。商品API、Excel API、セッションAPIは
-このCookieがないリクエストを拒否します。ヘルスチェックだけはロードバランサーから利用できるよう
-公開します。
+ログイン前は認証画面だけを表示します。ユーザー名とPBKDF2-SHA256パスワードハッシュは
+Secrets ManagerからECSの環境変数へ注入し、パスワードの平文は保存しません。認証後は署名と
+有効期限を持つHttpOnly Cookieを発行します。商品API、Excel API、セッションAPIはこのCookieが
+ないリクエストを拒否します。ヘルスチェックだけはロードバランサーから利用できるよう公開します。
 
 ## AWS
 
@@ -52,6 +52,7 @@ Deployment -> ECR -> ECS Fargate
 - CloudFront: HTTPS終端、動的リクエスト転送、キャッシュ無効化
 - Application Load Balancer: ヘルスチェックとECSへの負荷分散
 - ECS Fargate: Dockerコンテナの実行
+- Secrets Manager: ログインユーザー名とパスワードハッシュの保管
 - ECSタスクロール: 商品CSVと店舗在庫CSVに限定した`GetObject`権限
 - S3: 定期更新される商品CSVと店舗在庫CSVの保管
 - ECR: Dockerイメージの保管
@@ -59,3 +60,4 @@ Deployment -> ECR -> ECS Fargate
 
 ALBのセキュリティグループはAWS管理のCloudFrontオリジン向けプレフィックスリストだけを許可します。
 加えて、CloudFrontが付与するランダムなヘッダー値をALBリスナールールで検証します。
+WAFのIP許可リストは保持していますが、CloudFrontへの関連付けは一時的に無効化しています。

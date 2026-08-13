@@ -3,20 +3,23 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 
 const COOKIE_NAME = 'excel_transformer_session';
 const SESSION_TTL_SECONDS = 8 * 60 * 60;
+const PASSWORD_HASH_ALGORITHM = 'pbkdf2-sha256';
+const PASSWORD_HASH_ITERATIONS = 210_000;
+const PASSWORD_HASH_BYTES = 32;
 const encoder = new TextEncoder();
 
 export type AuthConfig = {
   username: string;
-  password: string;
+  passwordHash: string;
 };
 
 export function loadAuthConfig(): AuthConfig {
   const username = Deno.env.get('APP_USER')?.trim();
-  const password = Deno.env.get('APP_PASSWORD');
-  if (!username || !password) {
-    throw new Error('APP_USER and APP_PASSWORD must be configured.');
+  const passwordHash = Deno.env.get('APP_PASSWORD_HASH')?.trim();
+  if (!username || !passwordHash || !parsePasswordHash(passwordHash)) {
+    throw new Error('APP_USER and a valid APP_PASSWORD_HASH must be configured.');
   }
-  return { username, password };
+  return { username, passwordHash };
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -30,11 +33,77 @@ function decodeBase64Url(value: string): Uint8Array {
 async function sessionKey(config: AuthConfig): Promise<CryptoKey> {
   return await crypto.subtle.importKey(
     'raw',
-    encoder.encode(`${config.username}\0${config.password}\0excel-transformer-session`),
+    encoder.encode(`${config.username}\0${config.passwordHash}\0excel-transformer-session`),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign', 'verify'],
   );
+}
+
+type ParsedPasswordHash = {
+  iterations: number;
+  salt: Uint8Array;
+  digest: Uint8Array;
+};
+
+function parsePasswordHash(value: string): ParsedPasswordHash | undefined {
+  const [algorithm, iterationsText, saltText, digestText, extra] = value.split('$');
+  const iterations = Number(iterationsText);
+  if (
+    algorithm !== PASSWORD_HASH_ALGORITHM || extra || !Number.isSafeInteger(iterations) ||
+    iterations < 1 || !saltText || !digestText
+  ) return undefined;
+
+  try {
+    const salt = decodeBase64Url(saltText);
+    const digest = decodeBase64Url(digestText);
+    if (salt.length < 16 || digest.length !== PASSWORD_HASH_BYTES) return undefined;
+    return { iterations, salt, digest };
+  } catch {
+    return undefined;
+  }
+}
+
+async function derivePasswordDigest(
+  password: string,
+  salt: Uint8Array,
+  iterations: number,
+): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  const digest = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt: salt.buffer as ArrayBuffer, iterations },
+    key,
+    PASSWORD_HASH_BYTES * 8,
+  );
+  return new Uint8Array(digest);
+}
+
+export async function createPasswordHash(
+  password: string,
+  options: { salt?: Uint8Array; iterations?: number } = {},
+): Promise<string> {
+  const salt = options.salt ?? crypto.getRandomValues(new Uint8Array(16));
+  const iterations = options.iterations ?? PASSWORD_HASH_ITERATIONS;
+  if (!password || salt.length < 16 || !Number.isSafeInteger(iterations) || iterations < 1) {
+    throw new Error('A password, a 16-byte salt, and a positive iteration count are required.');
+  }
+  const digest = await derivePasswordDigest(password, salt, iterations);
+  return [PASSWORD_HASH_ALGORITHM, iterations, base64Url(salt), base64Url(digest)].join('$');
+}
+
+function constantTimeEqual(left: Uint8Array, right: Uint8Array): boolean {
+  let difference = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index++) {
+    difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
+  }
+  return difference === 0;
 }
 
 export async function credentialsMatch(
@@ -42,15 +111,16 @@ export async function credentialsMatch(
   username: string,
   password: string,
 ): Promise<boolean> {
-  const [expected, received] = await Promise.all([
-    crypto.subtle.digest('SHA-256', encoder.encode(`${config.username}\0${config.password}`)),
-    crypto.subtle.digest('SHA-256', encoder.encode(`${username}\0${password}`)),
+  const parsed = parsePasswordHash(config.passwordHash);
+  if (!parsed) return false;
+
+  const [expectedUsername, receivedUsername, receivedPassword] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encoder.encode(config.username)),
+    crypto.subtle.digest('SHA-256', encoder.encode(username)),
+    derivePasswordDigest(password, parsed.salt, parsed.iterations),
   ]);
-  const left = new Uint8Array(expected);
-  const right = new Uint8Array(received);
-  let difference = left.length ^ right.length;
-  for (let index = 0; index < left.length; index++) difference |= left[index]! ^ right[index]!;
-  return difference === 0;
+  return constantTimeEqual(new Uint8Array(expectedUsername), new Uint8Array(receivedUsername)) &&
+    constantTimeEqual(parsed.digest, receivedPassword);
 }
 
 export async function createSessionToken(config: AuthConfig): Promise<string> {

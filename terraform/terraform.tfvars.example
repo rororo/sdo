@@ -6,5 +6,5 @@ shoe_data_bucket = "scanalytics-report"
 # Replace this value with the office or VPN public address before production use.
 allowed_ipv4_cidrs = ["203.0.113.10/32"]
 
-# Supply app_user and app_password through TF_VAR_app_user and
-# TF_VAR_app_password instead of writing credentials in this file.
+# Supply app_user and app_password_hash through TF_VAR_app_user and
+# TF_VAR_app_password_hash instead of writing credentials in this file.

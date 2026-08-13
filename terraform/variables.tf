@@ -39,8 +39,8 @@ variable "app_user" {
   sensitive   = true
 }
 
-variable "app_password" {
-  description = "Application login password"
+variable "app_password_hash" {
+  description = "PBKDF2 hash of the application login password"
   type        = string
   sensitive   = true
 }

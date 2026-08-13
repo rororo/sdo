@@ -19,7 +19,7 @@
       "healthCheck": {
         "command": [
           "CMD-SHELL",
-          "deno eval --allow-net=127.0.0.1 \"const r=await fetch('http://127.0.0.1:8000/health');if(!r.ok)Deno.exit(1)\""
+          "deno eval \"const r=await fetch('http://127.0.0.1:8000/health');if(!r.ok)Deno.exit(1)\""
         ],
         "interval": 30,
         "timeout": 5,

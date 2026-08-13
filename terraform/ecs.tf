@@ -31,10 +31,18 @@ resource "aws_ecs_task_definition" "app" {
       protocol      = "tcp"
     }]
     environment = [
-      { name = "APP_USER", value = var.app_user },
-      { name = "APP_PASSWORD", value = var.app_password },
       { name = "AWS_REGION", value = var.aws_region },
       { name = "SHOE_DATA_BUCKET", value = var.shoe_data_bucket }
+    ]
+    secrets = [
+      {
+        name      = "APP_USER"
+        valueFrom = "${aws_secretsmanager_secret.app_auth.arn}:APP_USER::"
+      },
+      {
+        name      = "APP_PASSWORD_HASH"
+        valueFrom = "${aws_secretsmanager_secret.app_auth.arn}:APP_PASSWORD_HASH::"
+      }
     ]
     healthCheck = {
       command     = ["CMD-SHELL", "deno eval \"const r=await fetch('http://127.0.0.1:8000/health');if(!r.ok)Deno.exit(1)\""]

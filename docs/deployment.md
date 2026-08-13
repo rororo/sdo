@@ -13,7 +13,8 @@
 cp .env.example .env
 ```
 
-`.env`の`APP_USER`と`APP_PASSWORD`を変更してください。十分に長いパスワードを使用します。
+`.env`の`APP_USER`と`APP_PASSWORD_HASH`を設定してください。パスワードの平文は保存せず、
+PBKDF2-SHA256ハッシュだけを管理します。
 `AWS_REGION`と`SHOE_DATA_BUCKET`は通常、例の値をそのまま利用できます。
 
 ## インフラ作成
@@ -29,7 +30,7 @@ set -a
 source .env
 set +a
 export TF_VAR_app_user="$APP_USER"
-export TF_VAR_app_password="$APP_PASSWORD"
+export TF_VAR_app_password_hash="$APP_PASSWORD_HASH"
 terraform -chdir=terraform init \
   -backend-config="bucket=YOUR_STATE_BUCKET" \
   -backend-config="key=excel-transformer/terraform.tfstate" \
@@ -39,7 +40,8 @@ terraform -chdir=terraform apply
 ```
 
 TerraformはECSタスクロールへ、指定バケットの商品CSVと店舗在庫CSVだけを読み取れる
-`s3:GetObject`権限を設定します。アクセスキーはコンテナへ渡さず、ECSタスクロールを使用します。
+`s3:GetObject`権限を設定します。ログインユーザー名とパスワードハッシュはSecrets Managerへ
+保存し、ECS実行ロールで取得します。アクセスキーやパスワードの平文はコンテナへ渡しません。
 
 ## アプリケーション更新
 

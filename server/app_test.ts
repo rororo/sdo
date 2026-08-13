@@ -1,7 +1,7 @@
 import { assertEquals, assertStringIncludes } from '@std/assert';
 import ExcelJS from 'exceljs';
 import { createApp } from './app.ts';
-import type { AuthConfig } from './auth.ts';
+import { type AuthConfig, createPasswordHash } from './auth.ts';
 import {
   PICKUP_SUBMISSION_HEADERS,
   SAFE_SIZE_HEADERS,
@@ -14,7 +14,14 @@ import type {
 } from './store_inventory_data_source.ts';
 import { OUTPUT_HEADERS, type ShoeProductRecord } from './transformer.ts';
 
-const auth: AuthConfig = { username: 'test-user', password: 'test-password' };
+const TEST_PASSWORD = 'test-password';
+const auth: AuthConfig = {
+  username: 'test-user',
+  passwordHash: await createPasswordHash(TEST_PASSWORD, {
+    salt: new Uint8Array(16),
+    iterations: 1,
+  }),
+};
 
 const sampleProduct: ShoeProductRecord = {
   department: '302',
@@ -97,7 +104,7 @@ async function loginCookie(): Promise<string> {
   const response = await createApp(auth, source()).request('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: auth.username, password: auth.password }),
+    body: JSON.stringify({ username: auth.username, password: TEST_PASSWORD }),
   });
   assertEquals(response.status, 200);
   const cookie = response.headers.get('set-cookie')?.split(';')[0];
