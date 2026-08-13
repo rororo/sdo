@@ -21,7 +21,7 @@ for (
     format: 'esm',
     banner: {
       js:
-        "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+        "import { createRequire as createNodeRequire } from 'node:module'; const require = createNodeRequire(import.meta.url);",
     },
   });
 }
