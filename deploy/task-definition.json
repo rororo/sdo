@@ -1,0 +1,35 @@
+{
+  "family": "excel-transformer",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/excel-transformer-ecs-execution",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/excel-transformer-ecs-task",
+  "containerDefinitions": [
+    {
+      "name": "web",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/excel-transformer:${IMAGE_TAG}",
+      "essential": true,
+      "portMappings": [{ "containerPort": 8000, "hostPort": 8000, "protocol": "tcp" }],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "deno eval --allow-net=127.0.0.1 \"const r=await fetch('http://127.0.0.1:8000/health');if(!r.ok)Deno.exit(1)\""
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 15
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/excel-transformer",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "web"
+        }
+      }
+    }
+  ]
+}

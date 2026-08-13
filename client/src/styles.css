@@ -1,0 +1,348 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: light;
+  --ink: #132437;
+  --muted: #657486;
+  --paper: #ffffff;
+  --accent: #0c806f;
+  --accent-dark: #08695c;
+  --wash: #edf5f3;
+  font-family: Inter, 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background: radial-gradient(circle at 15% 5%, rgb(12 128 111 / 9%), transparent 30rem),
+    linear-gradient(180deg, #f8faf9 0%, #eef3f2 100%);
+}
+button,
+input {
+  font: inherit;
+}
+.shell {
+  width: min(880px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 72px 0 56px;
+}
+.auth-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
+.auth-loading {
+  color: var(--muted);
+}
+.login-card {
+  width: min(430px, 100%);
+  padding: 42px;
+  border: 1px solid rgb(19 36 55 / 8%);
+  border-radius: 24px;
+  background: var(--paper);
+  box-shadow: 0 24px 70px rgb(35 55 65 / 12%);
+}
+.login-mark {
+  margin-bottom: 28px;
+}
+.login-lead {
+  margin: 12px 0 28px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.login-form {
+  display: grid;
+  gap: 18px;
+}
+.login-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.login-form input {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid #cbd7dc;
+  border-radius: 10px;
+  color: var(--ink);
+  background: #fbfcfc;
+  outline: none;
+  transition: border-color 160ms, box-shadow 160ms;
+}
+.login-form input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(12 128 111 / 14%);
+}
+.login-form .primary-button {
+  margin-top: 4px;
+}
+.hero {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 34px;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  border-radius: 18px;
+  background: var(--ink);
+  box-shadow: 0 12px 30px rgb(19 36 55 / 18%);
+}
+.brand-mark svg {
+  width: 34px;
+  fill: none;
+  stroke: white;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+.eyebrow {
+  margin: 2px 0 8px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .18em;
+}
+h1 {
+  margin: 0;
+  font-family: Georgia, 'Yu Mincho', serif;
+  font-size: clamp(34px, 6vw, 52px);
+  font-weight: 500;
+  letter-spacing: -.03em;
+}
+.lead {
+  max-width: 630px;
+  margin: 13px 0 0;
+  color: var(--muted);
+  line-height: 1.75;
+}
+.account {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.account button {
+  padding: 7px 10px;
+  border: 1px solid #ccd7dc;
+  border-radius: 8px;
+  color: var(--ink);
+  background: rgb(255 255 255 / 70%);
+  cursor: pointer;
+}
+.account button:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+.panel {
+  padding: clamp(24px, 5vw, 44px);
+  border: 1px solid rgb(19 36 55 / 8%);
+  border-radius: 24px;
+  background: var(--paper);
+  box-shadow: 0 24px 70px rgb(35 55 65 / 9%);
+}
+.step {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+.step span {
+  margin-right: 8px;
+  color: var(--accent);
+}
+h2 {
+  margin: 10px 0 24px;
+  font-size: 22px;
+  font-weight: 700;
+}
+.drop-zone {
+  display: flex;
+  min-height: 235px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px;
+  border: 1.5px dashed #a8b9bc;
+  border-radius: 16px;
+  background: #fafcfc;
+  cursor: pointer;
+  transition: border-color 160ms, background 160ms, transform 160ms;
+}
+.drop-zone:hover,
+.drop-zone.is-dragging {
+  border-color: var(--accent);
+  background: var(--wash);
+  transform: translateY(-2px);
+}
+.drop-zone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.upload-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 5px;
+  border-radius: 50%;
+  color: white;
+  background: var(--accent);
+  font-size: 25px;
+}
+.drop-zone strong {
+  font-size: 17px;
+}
+.drop-zone span:not(.upload-icon),
+.drop-zone small {
+  color: var(--muted);
+}
+.drop-zone small {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.selected-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--wash);
+}
+.selected-file div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.selected-file strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.selected-file span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.selected-file button {
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 25px;
+}
+.primary-button {
+  width: 100%;
+  margin-top: 20px;
+  padding: 15px 22px;
+  border: 0;
+  border-radius: 12px;
+  color: white;
+  background: var(--accent);
+  cursor: pointer;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgb(12 128 111 / 20%);
+  transition: background 160ms, transform 160ms;
+}
+.primary-button:hover:not(:disabled) {
+  background: var(--accent-dark);
+  transform: translateY(-1px);
+}
+.primary-button:focus-visible,
+.selected-file button:focus-visible,
+.drop-zone:has(input:focus-visible) {
+  outline: 3px solid rgb(12 128 111 / 35%);
+  outline-offset: 3px;
+}
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+  box-shadow: none;
+}
+.message {
+  min-height: 22px;
+  margin: 12px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.message.error {
+  color: #b53939;
+}
+.message.success {
+  color: var(--accent-dark);
+}
+.notes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 20px;
+}
+.notes article {
+  display: flex;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid rgb(19 36 55 / 8%);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 55%);
+}
+.notes article > span {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+.notes strong {
+  font-size: 14px;
+}
+.notes p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+@media (max-width: 620px) {
+  .shell {
+    padding-top: 38px;
+  }
+  .hero {
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+  .brand-mark {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+  }
+  .account {
+    width: 100%;
+    justify-content: flex-end;
+    padding-top: 0;
+  }
+  .login-card {
+    padding: 30px 24px;
+    border-radius: 18px;
+  }
+  .notes {
+    grid-template-columns: 1fr;
+  }
+  .panel {
+    border-radius: 18px;
+  }
+}

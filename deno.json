@@ -1,0 +1,45 @@
+{
+  "nodeModulesDir": "auto",
+  "imports": {
+    "@hono/zod-validator": "npm:@hono/zod-validator@^0.7.6",
+    "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.18",
+    "@vitejs/plugin-react": "npm:@vitejs/plugin-react@^6.0.1",
+    "@base-ui/react": "npm:@base-ui/react@1.6.0",
+    "@std/assert": "jsr:@std/assert@^1.0.18",
+    "esbuild": "npm:esbuild@0.27.3",
+    "exceljs": "npm:exceljs@^4.4.0",
+    "hono": "npm:hono@^4.11.4",
+    "archiver": "npm:archiver@^5.3.2",
+    "react": "npm:react@^19.2.4",
+    "react-dom/client": "npm:react-dom@^19.2.4/client",
+    "tailwindcss": "npm:tailwindcss@^4.1.18",
+    "vite": "npm:vite@^8.0.0",
+    "zod": "npm:zod@^4.3.6"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "types": ["npm:@types/react@^19.2.14", "npm:@types/react-dom@^19.2.3"],
+    "lib": ["dom", "dom.asynciterable", "dom.iterable", "deno.ns"]
+  },
+  "tasks": {
+    "dev": "deno run -A scripts/dev.ts",
+    "dev:client": "deno run -A npm:vite --config client/vite.config.ts",
+    "dev:server": "deno run -A --env-file=.env --watch server/dev.ts",
+    "check": "deno fmt --check && deno lint && deno check client/src/main.tsx server/main.ts server/docker.ts",
+    "test": "deno test -A",
+    "build": "deno run -A scripts/build.ts",
+    "start": "deno run --env-file=.env --allow-net --allow-read=dist/client --allow-env dist/docker.js"
+  },
+  "fmt": {
+    "lineWidth": 100,
+    "semiColons": true,
+    "singleQuote": true,
+    "exclude": ["dist", "terraform", "client/.vite"]
+  },
+  "lint": {
+    "exclude": ["dist", "client/.vite"]
+  }
+}

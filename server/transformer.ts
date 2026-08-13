@@ -1,0 +1,424 @@
+import ExcelJS from 'exceljs';
+import archiver from 'archiver';
+import { Buffer } from 'node:buffer';
+import { PassThrough } from 'node:stream';
+import { DEPARTMENT_ITEM_MASTER } from './department_item_master.ts';
+
+const OUTPUT_SHEET_NAME = 'Master Data2026FW②';
+const HEADER_SCAN_LIMIT = 100;
+
+export const SOURCE_HEADERS = [
+  '部門',
+  '部門名',
+  '品種',
+  '品種名',
+  '品目',
+  '品目名',
+  '自社品番',
+  'ブランド',
+  'スキャンコード(jan)',
+  'メーカー品番',
+  '商品名(en)',
+  'size',
+  'sizesys',
+] as const;
+
+export const OUTPUT_HEADERS = [
+  'BRAND',
+  'EAN',
+  'Manufacturer shoe model ID with color code',
+  'Commercial name of the shoe',
+  'Female, Male, Unisex',
+  'Adult, Child',
+  'Size ',
+  'SizeSys',
+  'Sport category',
+  'Season',
+  'Style ID / Model Id / Article',
+  'Retailer internal code',
+  'SPIKE',
+  'Retailer Size Sys',
+  'Retailer Size',
+  'Retailer Display Size',
+  'Custom Filter1',
+  'Custom Filter2',
+  'Custom Filter3',
+  'FEDAS',
+  'FEDAS Colour Code',
+] as const;
+
+const TEMPLATE_NOTES = [
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  'Size - Provide all existing sizes for a specific model in the format seen below.  ',
+  "Brand 's native Size System. (you may also write the size system and sizes that you use instore , to the Optional columns on the right)",
+  null,
+  null,
+  "Style's unique identifier. Example :different SKU's that fall under the same model/style/article",
+  'You  may use your own internal code on the feet scanners and API integrations ',
+  'Custom Filter1\n“✓ in SPIKE column indicates shoes with spikes.\nThese shoes should NOT be displayed in the Lifestyle category.”',
+  'You may use the size systems that you use instore, on the feet scanners and API integrations.',
+  null,
+  null,
+  'We can show the values under these custom fields as filters on the Product listing page of the Scanner UI. Like the filters on your web shop. You can add new columns if required. (e.g. product category or material etc) ',
+  null,
+  null,
+  'Product Classification Key',
+  null,
+] as const;
+
+const OUTPUT_WIDTHS = [
+  15,
+  18,
+  57,
+  39,
+  22,
+  17,
+  12,
+  14,
+  18,
+  16,
+  32,
+  24,
+  12,
+  22,
+  16,
+  24,
+  20,
+  20,
+  20,
+  16,
+  22,
+] as const;
+
+type OutputValue = string | number | boolean | Date | null;
+
+interface SourceLocation {
+  sheet: ExcelJS.Worksheet;
+  headerRow: number;
+}
+
+export interface TransformResult {
+  bytes: Uint8Array;
+  processedRows: number;
+}
+
+export class WorkbookValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WorkbookValidationError';
+  }
+}
+
+function effectiveValue(cell: ExcelJS.Cell): unknown {
+  const value = cell.value;
+  if (value === undefined || value === null) return null;
+  if (value instanceof Date) return value;
+  if (typeof value !== 'object') return value;
+  if ('result' in value) return value.result ?? null;
+  if ('richText' in value) return value.richText.map((part) => part.text).join('');
+  if ('text' in value) return value.text;
+  return value;
+}
+
+function scalarValue(value: unknown): OutputValue {
+  if (
+    value === null || typeof value === 'string' || typeof value === 'number' ||
+    typeof value === 'boolean' || value instanceof Date
+  ) return value;
+  return String(value);
+}
+
+function excelString(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object') return String(value);
+  return String(value);
+}
+
+function normalizedHeader(value: unknown): string {
+  return excelString(value).normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function findSource(workbook: ExcelJS.Workbook): SourceLocation {
+  for (const sheet of workbook.worksheets) {
+    const lastCandidate = Math.min(sheet.actualRowCount, HEADER_SCAN_LIMIT);
+    for (let rowNumber = 1; rowNumber <= lastCandidate; rowNumber++) {
+      const matches = SOURCE_HEADERS.every((expected, index) =>
+        normalizedHeader(effectiveValue(sheet.getCell(rowNumber, index + 1))) ===
+          normalizedHeader(expected)
+      );
+      if (matches) return { sheet, headerRow: rowNumber };
+    }
+  }
+  throw new WorkbookValidationError(
+    `入力列が見つかりません。A列から順に「${
+      SOURCE_HEADERS.join('、')
+    }」を含むシートを確認してください。`,
+  );
+}
+
+function codePart(value: unknown, label: string, sheetRow: number): string {
+  const text = excelString(value).trim();
+  const match = /^(\d+)(?:\.0+)?$/.exec(text);
+  if (!match?.[1]) {
+    throw new WorkbookValidationError(
+      `${sheetRow}行目の「${label}」は整数で入力してください。`,
+    );
+  }
+  return match[1].replace(/^0+(?=\d)/, '');
+}
+
+function formatEan(value: unknown, sheetRow: number): string {
+  let digits: string;
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new WorkbookValidationError(
+        `${sheetRow}行目の「スキャンコード(jan)」は整数で入力してください。`,
+      );
+    }
+    digits = value.toFixed(0);
+  } else {
+    digits = excelString(value).trim();
+    if (!/^\d+$/.test(digits)) {
+      throw new WorkbookValidationError(
+        `${sheetRow}行目の「スキャンコード(jan)」は数字のみで入力してください。`,
+      );
+    }
+  }
+  return digits.padStart(13, '0');
+}
+
+function hasSourceData(values: readonly unknown[]): boolean {
+  return values.some((value) => value !== null && value !== undefined && value !== '');
+}
+
+function convertedValues(values: readonly unknown[], rowNumber: number): OutputValue[] {
+  const department = codePart(values[0], SOURCE_HEADERS[0], rowNumber);
+  const category = codePart(values[2], SOURCE_HEADERS[2], rowNumber);
+  const item = codePart(values[4], SOURCE_HEADERS[4], rowNumber);
+  const masterKey = `${department}${category}${item}`;
+  const attributes = DEPARTMENT_ITEM_MASTER[masterKey];
+  if (!attributes) {
+    throw new WorkbookValidationError(
+      `${rowNumber}行目の部門・品種・品目（${department} / ${category} / ${item}）は固定マスタに登録されていません。`,
+    );
+  }
+
+  const manufacturerModel = scalarValue(values[9]);
+  return [
+    scalarValue(values[7]),
+    formatEan(values[8], rowNumber),
+    manufacturerModel,
+    scalarValue(values[10]),
+    attributes.gender,
+    attributes.ageGroup,
+    scalarValue(values[11]),
+    excelString(values[12]),
+    attributes.sportCategory,
+    null,
+    `${excelString(manufacturerModel)}${attributes.gender}${attributes.ageGroup}`,
+    scalarValue(values[6]),
+    attributes.spike,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+  ];
+}
+
+function escapeXml(value: string): string {
+  const withoutControlCharacters = [...value].filter((character) => {
+    const code = character.charCodeAt(0);
+    return code >= 32 || code === 9 || code === 10 || code === 13;
+  }).join('');
+  return withoutControlCharacters
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
+function columnLetter(column: number): string {
+  let result = '';
+  for (let value = column; value > 0; value = Math.floor((value - 1) / 26)) {
+    result = String.fromCharCode(65 + ((value - 1) % 26)) + result;
+  }
+  return result;
+}
+
+function cellXml(row: number, column: number, value: OutputValue, style?: number): string {
+  if (value === null) return '';
+  const address = `${columnLetter(column)}${row}`;
+  const styleAttribute = style === undefined ? '' : ` s="${style}"`;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return `<c r="${address}"${styleAttribute}><v>${value}</v></c>`;
+  }
+  if (typeof value === 'boolean') {
+    return `<c r="${address}"${styleAttribute} t="b"><v>${value ? 1 : 0}</v></c>`;
+  }
+  const text = value instanceof Date ? value.toISOString() : String(value);
+  if (text === '') return `<c r="${address}"${styleAttribute} t="str"><v></v></c>`;
+  const preserve = /^\s|\s$|\n/.test(text) ? ' xml:space="preserve"' : '';
+  return `<c r="${address}"${styleAttribute} t="inlineStr"><is><t${preserve}>${
+    escapeXml(text)
+  }</t></is></c>`;
+}
+
+function rowXml(rowNumber: number, values: readonly OutputValue[], options?: {
+  height?: number;
+  header?: boolean;
+}): string {
+  const height = options?.height === undefined ? '' : ` ht="${options.height}" customHeight="1"`;
+  const cells = values.map((value, index) => {
+    let style: number | undefined;
+    if (options?.header) {
+      style = index < 4 ? 1 : index < 10 ? 2 : 3;
+    }
+    return cellXml(rowNumber, index + 1, value, style);
+  }).join('');
+  return `<row r="${rowNumber}"${height}>${cells}</row>`;
+}
+
+function worksheetXml(rows: readonly OutputValue[][]): string {
+  const dataRows = rows.map((values, index) => rowXml(index + 5, values)).join('');
+  const widths = OUTPUT_WIDTHS.map((width, index) =>
+    `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`
+  ).join('');
+  const categories: OutputValue[] = Array(OUTPUT_HEADERS.length).fill(null);
+  categories[0] = 'Mandatory values to be filled.';
+  categories[10] = 'Optional data';
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:U${rows.length + 4}"/>
+  <sheetViews><sheetView workbookViewId="0" zoomScale="70" zoomScaleNormal="70"/></sheetViews>
+  <sheetFormatPr defaultRowHeight="15"/>
+  <cols>${widths}</cols>
+  <sheetData>
+    <row r="1"/>
+    ${rowXml(2, categories)}
+    ${rowXml(3, [...TEMPLATE_NOTES], { height: 120 })}
+    ${rowXml(4, [...OUTPUT_HEADERS], { height: 36, header: true })}
+    ${dataRows}
+  </sheetData>
+  <autoFilter ref="A4:U${rows.length + 4}"/>
+  <mergeCells count="2"><mergeCell ref="A2:J2"/><mergeCell ref="K2:U2"/></mergeCells>
+</worksheet>`;
+}
+
+async function createOutputWorkbook(rows: readonly OutputValue[][]): Promise<Uint8Array> {
+  const files = new Map<string, string>();
+  files.set(
+    '[Content_Types].xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`,
+  );
+  files.set(
+    '_rels/.rels',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`,
+  );
+  files.set(
+    'xl/workbook.xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <bookViews><workbookView/></bookViews>
+  <sheets><sheet name="${escapeXml(OUTPUT_SHEET_NAME)}" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`,
+  );
+  files.set(
+    'xl/_rels/workbook.xml.rels',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`,
+  );
+  files.set(
+    'xl/styles.xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="3">
+    <font><sz val="11"/><name val="Calibri"/><family val="2"/></font>
+    <font><b/><sz val="13"/><color rgb="FFFF0000"/><name val="Meiryo UI"/></font>
+    <font><b/><sz val="11"/><color rgb="FF000000"/><name val="Meiryo UI"/></font>
+  </fonts>
+  <fills count="3">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFFC000"/><bgColor indexed="64"/></patternFill></fill>
+  </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border><left style="thin"><color rgb="FF808080"/></left><right style="thin"><color rgb="FF808080"/></right><top style="thin"><color rgb="FF808080"/></top><bottom style="thin"><color rgb="FF808080"/></bottom><diagonal/></border>
+  </borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="4">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+  </cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`,
+  );
+  files.set('xl/worksheets/sheet1.xml', worksheetXml(rows));
+
+  const output = new PassThrough();
+  const chunks: Buffer[] = [];
+  output.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+  const complete = new Promise<void>((resolve, reject) => {
+    output.once('end', resolve);
+    output.once('error', reject);
+  });
+  const zip = archiver('zip', { zlib: { level: 6 } });
+  zip.once('error', (error: Error) => output.destroy(error));
+  zip.pipe(output);
+  for (const [name, content] of files) zip.append(content, { name });
+  await zip.finalize();
+  await complete;
+  return new Uint8Array(Buffer.concat(chunks));
+}
+
+export async function transformWorkbook(source: Uint8Array): Promise<TransformResult> {
+  const inputWorkbook = new ExcelJS.Workbook();
+  const input = Buffer.from(source) as unknown as Parameters<typeof inputWorkbook.xlsx.load>[0];
+  await inputWorkbook.xlsx.load(input);
+
+  const { sheet: sourceSheet, headerRow } = findSource(inputWorkbook);
+  const rows: OutputValue[][] = [];
+  const lastSourceRow = sourceSheet.actualRowCount;
+  for (let rowNumber = headerRow + 1; rowNumber <= lastSourceRow; rowNumber++) {
+    const values = Array.from(
+      { length: SOURCE_HEADERS.length },
+      (_, index) => effectiveValue(sourceSheet.getCell(rowNumber, index + 1)),
+    );
+    if (!hasSourceData(values)) continue;
+    rows.push(convertedValues(values, rowNumber));
+  }
+
+  if (rows.length === 0) {
+    throw new WorkbookValidationError('変換対象のデータ行がありません。');
+  }
+
+  const bytes = await createOutputWorkbook(rows);
+  return { bytes, processedRows: rows.length };
+}

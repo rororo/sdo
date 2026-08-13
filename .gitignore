@@ -1,0 +1,10 @@
+.deno/
+node_modules/
+dist/
+client/.vite/
+.env
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform/
+terraform/*.tfvars
+!terraform/terraform.tfvars.example

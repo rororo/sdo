@@ -1,0 +1,7 @@
+.git
+.deno
+node_modules
+dist
+client/.vite
+terraform
+deploy
