@@ -58,6 +58,28 @@ const SHOE_FIELDS = [
   ['sizeSystem', 'SizeSys'],
 ] as const satisfies readonly [keyof ShoeProductRecord, string][];
 
+const SHOE_COLUMN_WIDTHS = [62, 116, 62, 116, 62, 130, 112, 132, 142, 128, 230, 60, 74];
+const PICKUP_COLUMN_WIDTHS = [
+  92,
+  92,
+  92,
+  92,
+  92,
+  92,
+  54,
+  58,
+  112,
+  54,
+  126,
+  128,
+  210,
+  112,
+  126,
+  110,
+  58,
+  118,
+];
+
 type AuthState =
   | { kind: 'loading' }
   | { kind: 'anonymous' }
@@ -83,6 +105,12 @@ interface PickupConfirmation {
   workbookBase64: string;
 }
 
+interface ToastMessage {
+  id: number;
+  kind: 'success' | 'error';
+  message: string;
+}
+
 function apiUrl(path: string): string {
   return new URL(path.startsWith('/') ? path : `/${path}`, globalThis.location.origin).toString();
 }
@@ -105,14 +133,63 @@ function formatDate(value: string | null): string {
   }).format(new Date(value));
 }
 
-function BrandMark({ login = false }: { login?: boolean }) {
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function initialsFor(username: string): string {
+  const words = username
+    .replace(/[^A-Za-z0-9\u3040-\u30ff\u4e00-\u9fff]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2);
+  return words.map((word) => word[0]?.toUpperCase() ?? '').join('') || 'U';
+}
+
+function Spinner() {
+  return <span className='spinner' aria-hidden='true' />;
+}
+
+function BrandLine() {
   return (
-    <div className={`brand-mark${login ? ' login-mark' : ''}`} aria-hidden='true'>
-      <svg viewBox='0 0 32 32'>
-        <path d='M6 22c4-1 6-5 8-11l4 7c2 2 5 3 8 3v5H6z' />
-        <path d='M8 26h18M15 15l4-2M18 19l4-2' />
-      </svg>
+    <div className='brand-line' aria-hidden='true'>
+      <span />
     </div>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg className='button-icon' aria-hidden='true' viewBox='0 0 16 16'>
+      <path d='M8 2v7.5M4.75 6.75 8 10l3.25-3.25M2.5 11.5v1A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5v-1' />
+    </svg>
+  );
+}
+
+function ProductIcon() {
+  return (
+    <svg className='nav-icon' aria-hidden='true' viewBox='0 0 16 16'>
+      <path d='M2.6 3.4h10.8v9.2H2.6zM2.6 6.4h10.8M6.4 6.4v6.2' />
+    </svg>
+  );
+}
+
+function PickupIcon() {
+  return (
+    <svg className='nav-icon' aria-hidden='true' viewBox='0 0 16 16'>
+      <path d='M4.2 2.6h4.6l3 3v7.8H4.2zM8.8 2.6v3h3M6 9.4l1.5 1.5 2.6-2.9' />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg className='button-icon' aria-hidden='true' viewBox='0 0 16 16'>
+      <path d='M13.5 7.5a5.5 5.5 0 0 0-9.9-3.1M2.5 8.5a5.5 5.5 0 0 0 9.9 3.1M3.2 2v2.6h2.6M12.8 14v-2.6h-2.6' />
+    </svg>
   );
 }
 
@@ -120,6 +197,7 @@ export function App() {
   const [auth, setAuth] = useState<AuthState>({ kind: 'loading' });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
   const [page, setPage] = useState(1);
@@ -142,7 +220,18 @@ export function App() {
   });
   const [pickupConfirmation, setPickupConfirmation] = useState<PickupConfirmation | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const dragDepth = useRef(0);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+
+  const showToast = useCallback((message: string, kind: ToastMessage['kind'] = 'success') => {
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    setToasts((current) => [...current, { id, kind, message }]);
+    globalThis.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 3600);
+  }, []);
 
   const navigateToView = useCallback((nextView: View) => {
     const nextPath = VIEW_PATHS[nextView];
@@ -182,6 +271,22 @@ export function App() {
     globalThis.addEventListener('popstate', syncViewWithUrl);
     return () => globalThis.removeEventListener('popstate', syncViewWithUrl);
   }, []);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const closeMenu = (event: globalThis.MouseEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) setAccountMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAccountMenuOpen(false);
+    };
+    globalThis.addEventListener('pointerdown', closeMenu);
+    globalThis.addEventListener('keydown', closeOnEscape);
+    return () => {
+      globalThis.removeEventListener('pointerdown', closeMenu);
+      globalThis.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [accountMenuOpen]);
 
   useEffect(() => {
     fetch(apiUrl('api/auth/session'))
@@ -243,6 +348,7 @@ export function App() {
         throw new Error(body.error ?? 'ログインに失敗しました。');
       }
       setPassword('');
+      setShowPassword(false);
       setPage(1);
       setAuth({ kind: 'authenticated', username: body.username });
     } catch (error) {
@@ -260,6 +366,8 @@ export function App() {
     setPickupFile(null);
     setPickupStatus({ kind: 'idle', message: '' });
     setPickupConfirmation(null);
+    setAccountMenuOpen(false);
+    setToasts([]);
     setAuth({ kind: 'anonymous' });
   };
 
@@ -287,11 +395,14 @@ export function App() {
         kind: 'success',
         message: `${count.toLocaleString('ja-JP')}件のExcelをダウンロードしました。`,
       });
+      showToast('商品一覧のExcelをダウンロードしました。');
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Excelを生成できませんでした。';
       setDownloadStatus({
         kind: 'error',
-        message: error instanceof Error ? error.message : 'Excelを生成できませんでした。',
+        message,
       });
+      showToast(message, 'error');
     }
   };
 
@@ -399,13 +510,16 @@ export function App() {
         kind: 'success',
         message: `${pickupFile.name} のアップロードを確定しました。`,
       });
+      showToast('提出用フォーマットを表示しました。');
     } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'ピックアップリストを生成できませんでした。';
       setPickupStatus({
         kind: 'error',
-        message: error instanceof Error
-          ? error.message
-          : 'ピックアップリストを生成できませんでした。',
+        message,
       });
+      showToast(message, 'error');
     }
   };
 
@@ -429,62 +543,115 @@ export function App() {
           pickupConfirmation.stats.outputRows.toLocaleString('ja-JP')
         }件のExcelをダウンロードしました。`,
       });
+      showToast('ピックアップリストのExcelをダウンロードしました。');
     } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Excelをダウンロードできませんでした。';
       setPickupStatus({
         kind: 'error',
-        message: error instanceof Error ? error.message : 'Excelをダウンロードできませんでした。',
+        message,
       });
+      showToast(message, 'error');
     }
   };
 
   if (auth.kind === 'loading') {
     return (
-      <main className='auth-shell'>
-        <p className='auth-loading'>読み込んでいます…</p>
-      </main>
+      <div className='app-frame'>
+        <BrandLine />
+        <main className='auth-shell'>
+          <Spinner />
+          <span className='sr-only'>読み込んでいます</span>
+        </main>
+      </div>
     );
   }
 
   if (auth.kind === 'anonymous') {
     return (
-      <main className='auth-shell'>
-        <section className='login-card' aria-labelledby='login-title'>
-          <BrandMark login />
-          <p className='eyebrow'>SHOE DATA HUB</p>
-          <h1 id='login-title'>ログイン</h1>
-          <p className='login-lead'>シューズ商品データを閲覧するにはログインしてください。</p>
-          <form className='login-form' onSubmit={login}>
-            <label>
-              <span>ユーザー名</span>
+      <div className='app-frame'>
+        <BrandLine />
+        <main className='auth-shell'>
+          <section className='login-card' aria-labelledby='login-title'>
+            <header className='login-card-header'>
+              <h1 id='login-title'>ログイン</h1>
+            </header>
+            <form className='login-form' onSubmit={login}>
+              <label htmlFor='username'>ユーザー名</label>
               <input
+                id='username'
                 name='username'
                 autoComplete='username'
+                placeholder='例: shoes.admin'
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 required
                 autoFocus
               />
-            </label>
-            <label>
-              <span>パスワード</span>
-              <input
-                name='password'
-                type='password'
-                autoComplete='current-password'
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
-            </label>
-            <button className='primary-button' type='submit' disabled={loggingIn}>
-              {loggingIn ? '確認しています…' : 'ログイン'}
-            </button>
-            <p className='message error' role='alert'>{loginError}</p>
-          </form>
-        </section>
-      </main>
+              <label htmlFor='password'>パスワード</label>
+              <div className='password-field'>
+                <input
+                  id='password'
+                  name='password'
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete='current-password'
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+                <button
+                  type='button'
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? 'パスワードを隠す' : 'パスワードを表示'}
+                >
+                  {showPassword ? '隠す' : '表示'}
+                </button>
+              </div>
+              <button className='login-button' type='submit' disabled={loggingIn}>
+                {loggingIn
+                  ? <Spinner />
+                  : (
+                    <svg className='button-icon' aria-hidden='true' viewBox='0 0 16 16'>
+                      <path d='M7 3.5h4.5A1.5 1.5 0 0 1 13 5v6a1.5 1.5 0 0 1-1.5 1.5H7M5.5 5.5 8 8l-2.5 2.5M8 8H2.6' />
+                    </svg>
+                  )}
+                <span>{loggingIn ? 'ログイン中' : 'ログイン'}</span>
+              </button>
+              {loginError && (
+                <div className='alert-message' role='alert'>
+                  <span aria-hidden='true'>!</span>
+                  <p>{loginError}</p>
+                </div>
+              )}
+            </form>
+          </section>
+        </main>
+      </div>
     );
   }
+
+  const productStatus = dataStatus.kind === 'error'
+    ? '取得失敗'
+    : dataStatus.kind === 'loading'
+    ? data ? 'ページ更新中' : '取得中'
+    : downloadStatus.kind === 'loading'
+    ? 'Excel生成中'
+    : data
+    ? '取得済'
+    : '取得中';
+  const pickupState = pickupStatus.kind === 'loading'
+    ? '処理中'
+    : pickupStatus.kind === 'error'
+    ? '処理失敗'
+    : pickupConfirmation
+    ? '完了'
+    : '未確定';
+  const shownPages = data
+    ? Array.from({ length: data.pageCount }, (_, index) => index + 1).filter((candidate) =>
+      candidate === 1 || candidate === data.pageCount || Math.abs(candidate - data.page) <= 1
+    )
+    : [];
 
   return (
     <main
@@ -494,290 +661,460 @@ export function App() {
       onDragLeave={endFileDrag}
       onDrop={dropPickupFile}
     >
+      <BrandLine />
+
       {isDraggingFile && (
         <div className='file-drop-overlay' role='status' aria-live='polite'>
           <div>
-            <span className='file-drop-icon' aria-hidden='true'>↓</span>
             <strong>Excelファイルをドロップ</strong>
+            <span>.xlsx 形式、1ファイル、20MBまで</span>
           </div>
         </div>
       )}
-      <header className='sheet-toolbar'>
-        <div className='sheet-heading'>
-          <div className='sheet-title'>
-            <BrandMark />
-            <h1>{view === 'products' ? '商品一覧' : 'ピックアップリスト作成'}</h1>
-          </div>
-          <nav className='view-switcher' aria-label='機能選択'>
-            <a
-              href={VIEW_PATHS.products}
-              className={view === 'products' ? 'active' : ''}
-              aria-current={view === 'products' ? 'page' : undefined}
-              onClick={(event) => switchView(event, 'products')}
-            >
-              商品一覧
-            </a>
-            <a
-              href={VIEW_PATHS.pickup}
-              className={view === 'pickup' ? 'active' : ''}
-              aria-current={view === 'pickup' ? 'page' : undefined}
-              onClick={(event) => switchView(event, 'pickup')}
-            >
-              ピックアップリスト
-            </a>
-          </nav>
-        </div>
-        <div className='toolbar-actions'>
-          {view === 'products' && (
-            <button
-              className='download-button'
-              type='button'
-              onClick={downloadExcel}
-              disabled={!data || downloadStatus.kind === 'loading'}
-            >
-              <span aria-hidden='true'>↓</span>
-              {downloadStatus.kind === 'loading' ? 'Excel生成中…' : 'Excelをダウンロード'}
-            </button>
-          )}
-          {view === 'pickup' && (
-            <button
-              className='download-button'
-              type='button'
-              onClick={downloadPickupExcel}
-              disabled={!pickupConfirmation || pickupStatus.kind === 'loading'}
-            >
-              <span aria-hidden='true'>↓</span>
-              Excelをダウンロード
-            </button>
-          )}
-          <span className='account-name'>{auth.username}</span>
-          <button className='logout-button' type='button' onClick={logout}>ログアウト</button>
-        </div>
-      </header>
 
-      {view === 'products' && (
-        <>
-          <section className='sheet-body' aria-label='商品一覧'>
-            {!data && dataStatus.kind === 'error' && (
-              <div className='empty-state'>
-                <strong>商品データを表示できません</strong>
-                <p>{dataStatus.message}</p>
-                <button
-                  className='secondary-button'
-                  type='button'
-                  onClick={() => void loadData(1)}
-                >
-                  再試行
+      <header className='sheet-toolbar'>
+        <nav className='view-switcher' aria-label='画面切り替え'>
+          <a
+            href={VIEW_PATHS.products}
+            className={view === 'products' ? 'active' : ''}
+            aria-current={view === 'products' ? 'page' : undefined}
+            onClick={(event) => switchView(event, 'products')}
+          >
+            <ProductIcon />
+            <span>商品一覧</span>
+          </a>
+          <a
+            href={VIEW_PATHS.pickup}
+            className={view === 'pickup' ? 'active' : ''}
+            aria-current={view === 'pickup' ? 'page' : undefined}
+            onClick={(event) => switchView(event, 'pickup')}
+          >
+            <PickupIcon />
+            <span>ピックアップリスト</span>
+          </a>
+        </nav>
+
+        <div className='toolbar-actions'>
+          <button
+            className='download-button'
+            type='button'
+            onClick={view === 'products' ? downloadExcel : downloadPickupExcel}
+            disabled={view === 'products'
+              ? !data || downloadStatus.kind === 'loading'
+              : !pickupConfirmation || pickupStatus.kind === 'loading'}
+            title={view === 'products'
+              ? '表示中の商品データをExcelでダウンロード'
+              : pickupConfirmation
+              ? '表示中のピックアップリストをExcelでダウンロード'
+              : 'アップロード確定後に利用できます'}
+          >
+            {view === 'products' && downloadStatus.kind === 'loading'
+              ? <Spinner />
+              : <DownloadIcon />}
+            <span>
+              {view === 'products' && downloadStatus.kind === 'loading'
+                ? 'Excel生成中'
+                : 'Excelダウンロード'}
+            </span>
+          </button>
+          <span className='toolbar-divider' aria-hidden='true' />
+          <div className='account-menu' ref={accountMenuRef}>
+            <button
+              className={`avatar-button${accountMenuOpen ? ' active' : ''}`}
+              type='button'
+              aria-haspopup='menu'
+              aria-expanded={accountMenuOpen}
+              aria-label={`アカウントメニュー: ${auth.username}`}
+              title={auth.username}
+              onClick={() => setAccountMenuOpen((current) => !current)}
+            >
+              {initialsFor(auth.username)}
+            </button>
+            {accountMenuOpen && (
+              <div className='account-popover' role='menu'>
+                <div className='account-summary'>
+                  <span className='account-avatar-small' aria-hidden='true'>
+                    {initialsFor(auth.username)}
+                  </span>
+                  <span>
+                    <strong>{auth.username}</strong>
+                    <small>ログイン中</small>
+                  </span>
+                </div>
+                <button type='button' role='menuitem' onClick={logout}>
+                  <svg className='button-icon' aria-hidden='true' viewBox='0 0 16 16'>
+                    <path d='M9.5 2.5H4A1.5 1.5 0 0 0 2.5 4v8A1.5 1.5 0 0 0 4 13.5h5.5M11 5.5 13.5 8 11 10.5M13.5 8H6.5' />
+                  </svg>
+                  <span>ログアウト</span>
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      </header>
 
-            {!data && dataStatus.kind !== 'error' && (
-              <div className='loading-table' aria-label='商品データを読み込み中'>
-                <span />
-                <span />
-                <span />
-              </div>
-            )}
+      <div className='workspace'>
+        {view === 'products' && (
+          <>
+            <section className='data-panel' aria-label='商品一覧'>
+              {!data && dataStatus.kind === 'error' && (
+                <div className='empty-state error-state' role='alert'>
+                  <span className='state-icon' aria-hidden='true'>!</span>
+                  <strong>商品データを取得できませんでした</strong>
+                  <p>{dataStatus.message}</p>
+                  <button
+                    className='secondary-button'
+                    type='button'
+                    onClick={() =>
+                      void loadData(1)}
+                  >
+                    <RefreshIcon />
+                    <span>再試行</span>
+                  </button>
+                </div>
+              )}
 
-            {data && (
-              <div className='table-scroll' aria-busy={dataStatus.kind === 'loading'}>
-                <table>
-                  <thead>
-                    <tr>
-                      {SHOE_FIELDS.map(([, label]) => <th key={label}>{label}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.records.map((record, index) => (
-                      <tr key={`${record.internalCode}-${record.ean}-${index}`}>
-                        {SHOE_FIELDS.map(([key]) => <td key={key}>{record[key] || '—'}</td>)}
+              {!data && dataStatus.kind !== 'error' && (
+                <div className='loading-table' aria-busy='true' aria-live='polite'>
+                  <div className='skeleton-heading'>データを読み込み中</div>
+                  {Array.from({ length: 13 }, (_, row) => (
+                    <div className='skeleton-row' key={row}>
+                      {[56, 92, 48, 104, 120, 76, 132, 60].map((width, column) => (
+                        <span
+                          key={column}
+                          style={{ width: width - row % 3 * 6 }}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {data && data.records.length === 0 && dataStatus.kind !== 'loading' && (
+                <div className='empty-state'>
+                  <span className='empty-table-icon' aria-hidden='true' />
+                  <strong>表示できる商品データがありません</strong>
+                  <p>
+                    取得は正常に完了しましたが、該当する商品がありませんでした。時間をおいて再度確認してください。
+                  </p>
+                </div>
+              )}
+
+              {data && data.records.length > 0 && (
+                <div className='table-scroll' aria-busy={dataStatus.kind === 'loading'}>
+                  <table className='product-table'>
+                    <thead>
+                      <tr>
+                        {SHOE_FIELDS.map(([, label], index) => (
+                          <th
+                            key={label}
+                            scope='col'
+                            style={{
+                              width: SHOE_COLUMN_WIDTHS[index],
+                              minWidth: SHOE_COLUMN_WIDTHS[index],
+                            }}
+                          >
+                            {label}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+                    </thead>
+                    <tbody>
+                      {data.records.map((record, rowIndex) => (
+                        <tr key={`${record.internalCode}-${record.ean}-${rowIndex}`} tabIndex={0}>
+                          {SHOE_FIELDS.map(([key], columnIndex) => (
+                            <td
+                              key={key}
+                              title={record[key] || '—'}
+                              className={[0, 2, 4, 6, 8, 9, 11].includes(columnIndex)
+                                ? 'mono-cell'
+                                : ''}
+                            >
+                              {record[key] || '—'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
-          <footer className='sheet-footer'>
-            <div className='sheet-meta'>
-              <span>
-                <strong>{data ? data.total.toLocaleString('ja-JP') : '—'}</strong>件
-              </span>
-              <span>更新 {formatDate(data?.metadata.lastModified ?? null)}</span>
-              {(dataStatus.message || downloadStatus.message) && (
+              {data && dataStatus.kind === 'loading' && (
+                <div className='paging-progress' role='status' aria-label='ページを更新中'>
+                  <span />
+                </div>
+              )}
+            </section>
+
+            <footer className='sheet-footer'>
+              <div className='sheet-meta'>
+                <span>
+                  商品件数 {data ? data.total.toLocaleString('ja-JP') : '—'} 件
+                  {data && data.total > 0 && (
+                    <>
+                      （{((data.page - 1) * data.pageSize + 1).toLocaleString('ja-JP')}–
+                      {Math.min(data.page * data.pageSize, data.total).toLocaleString('ja-JP')}{' '}
+                      表示）
+                    </>
+                  )}
+                </span>
+                <span>最終更新 {formatDate(data?.metadata.lastModified ?? null)}</span>
                 <span
-                  className={`footer-message ${
-                    dataStatus.kind === 'error' || downloadStatus.kind === 'error' ? 'error' : ''
+                  className={`status-badge${dataStatus.kind === 'error' ? ' error' : ''}`}
+                  role='status'
+                  aria-live='polite'
+                >
+                  {productStatus}
+                </span>
+              </div>
+
+              {data && data.pageCount > 0 && (
+                <nav className='pagination' aria-label='商品一覧のページ切り替え'>
+                  <button
+                    type='button'
+                    onClick={() =>
+                      setPage(1)}
+                    disabled={data.page <= 1 || dataStatus.kind === 'loading'}
+                    aria-label='最初のページ'
+                  >
+                    <span aria-hidden='true'>«</span>
+                    <span className='pager-label'>最初</span>
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() =>
+                      setPage((current) => Math.max(1, current - 1))}
+                    disabled={data.page <= 1 || dataStatus.kind === 'loading'}
+                    aria-label='前のページ'
+                  >
+                    <span aria-hidden='true'>‹</span>
+                    <span className='pager-label'>前</span>
+                  </button>
+                  {shownPages.map((shownPage, index) => (
+                    <span className='page-number-group' key={shownPage}>
+                      {index > 0 && shownPage - (shownPages[index - 1] ?? 0) > 1 && (
+                        <span className='pagination-gap' aria-hidden='true'>…</span>
+                      )}
+                      <button
+                        type='button'
+                        className={shownPage === data.page ? 'current' : ''}
+                        aria-current={shownPage === data.page ? 'page' : undefined}
+                        aria-label={`${shownPage}ページ目`}
+                        onClick={() =>
+                          setPage(shownPage)}
+                        disabled={dataStatus.kind === 'loading' && shownPage !== data.page}
+                      >
+                        {shownPage}
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type='button'
+                    onClick={() => setPage((current) => Math.min(data.pageCount, current + 1))}
+                    disabled={data.page >= data.pageCount || dataStatus.kind === 'loading'}
+                    aria-label='次のページ'
+                  >
+                    <span className='pager-label'>次</span>
+                    <span aria-hidden='true'>›</span>
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() => setPage(data.pageCount)}
+                    disabled={data.page >= data.pageCount || dataStatus.kind === 'loading'}
+                    aria-label='最後のページ'
+                  >
+                    <span className='pager-label'>最後</span>
+                    <span aria-hidden='true'>»</span>
+                  </button>
+                </nav>
+              )}
+            </footer>
+          </>
+        )}
+
+        {view === 'pickup' && (
+          <>
+            {pickupConfirmation
+              ? (
+                <div className='upload-compact'>
+                  <span className='success-check' aria-hidden='true'>✓</span>
+                  <strong title={pickupFile?.name}>{pickupFile?.name}</strong>
+                  <span>{pickupFile ? formatFileSize(pickupFile.size) : ''}</span>
+                  <label className='secondary-file-button'>
+                    <RefreshIcon />
+                    <span>別のファイルを選択</span>
+                    <input type='file' accept='.xlsx' onChange={selectPickupFile} />
+                  </label>
+                </div>
+              )
+              : (
+                <section className='upload-panel' aria-labelledby='pickup-file-title'>
+                  <span className='xlsx-icon' aria-hidden='true'>XLS</span>
+                  <h1 id='pickup-file-title'>Excelファイルをドロップ、または選択</h1>
+                  <p>画面のどこへドロップしても受け付けます。.xlsx 形式、1ファイル、20MBまで。</p>
+                  <div className='upload-actions'>
+                    <label className='file-button'>
+                      <svg className='button-icon' aria-hidden='true' viewBox='0 0 16 16'>
+                        <path d='M2.5 12.5v-8A1.5 1.5 0 0 1 4 3h2.2l1.2 1.6H12a1.5 1.5 0 0 1 1.5 1.5v6.4A1.5 1.5 0 0 1 12 14H4a1.5 1.5 0 0 1-1.5-1.5Z' />
+                      </svg>
+                      <span>ファイルを選択</span>
+                      <input type='file' accept='.xlsx' onChange={selectPickupFile} />
+                    </label>
+                    {pickupFile && (
+                      <button
+                        className='confirm-button'
+                        type='button'
+                        onClick={confirmPickupUpload}
+                        disabled={pickupStatus.kind === 'loading'}
+                      >
+                        {pickupStatus.kind === 'loading'
+                          ? <Spinner />
+                          : (
+                            <svg className='button-icon' aria-hidden='true' viewBox='0 0 16 16'>
+                              <path d='m3.2 8.4 3 3 6.6-6.8' />
+                            </svg>
+                          )}
+                        <span>
+                          {pickupStatus.kind === 'loading' ? '確認中' : 'アップロードを確定'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                  {pickupFile && (
+                    <div className='selected-file'>
+                      <strong title={pickupFile.name}>{pickupFile.name}</strong>
+                      <span>{formatFileSize(pickupFile.size)}</span>
+                      <button type='button' onClick={() => updatePickupFile(null)}>選択解除</button>
+                    </div>
+                  )}
+                  {pickupStatus.kind === 'error' && (
+                    <div className='alert-message upload-error' role='alert'>
+                      <span aria-hidden='true'>!</span>
+                      <p>{pickupStatus.message}</p>
+                    </div>
+                  )}
+                </section>
+              )}
+
+            <section className='data-panel pickup-result-panel' aria-label='出力フォーマット'>
+              {pickupConfirmation
+                ? (
+                  <>
+                    <header className='result-heading'>
+                      <h2>出力フォーマット</h2>
+                      <span>出力 {pickupConfirmation.rows.length.toLocaleString('ja-JP')} 件</span>
+                    </header>
+                    <div className='table-scroll'>
+                      <table className='pickup-preview-table'>
+                        <thead>
+                          <tr>
+                            {pickupConfirmation.headers.map((header, index) => (
+                              <th
+                                key={`${header}-${index}`}
+                                scope='col'
+                                style={{
+                                  width: PICKUP_COLUMN_WIDTHS[index],
+                                  minWidth: PICKUP_COLUMN_WIDTHS[index],
+                                }}
+                              >
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pickupConfirmation.rows.map((row, rowIndex) => (
+                            <tr key={`pickup-output-${rowIndex}`} tabIndex={0}>
+                              {row.map((value, columnIndex) => (
+                                <td
+                                  key={`${rowIndex}-${columnIndex}`}
+                                  title={String(value)}
+                                  className={columnIndex === 6 || columnIndex === 7 ||
+                                      columnIndex === 9 || columnIndex === 10 ||
+                                      columnIndex === 15 || columnIndex === 16
+                                    ? 'mono-cell'
+                                    : ''}
+                                >
+                                  {value}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )
+                : pickupStatus.kind === 'error' && pickupFile
+                ? (
+                  <div className='empty-state error-state' role='alert'>
+                    <span className='state-icon' aria-hidden='true'>!</span>
+                    <strong>処理に失敗しました</strong>
+                    <p>
+                      入力ファイルは保持しています。再試行するか、別のファイルを選択してください。
+                    </p>
+                    <button
+                      className='secondary-button'
+                      type='button'
+                      onClick={confirmPickupUpload}
+                    >
+                      <RefreshIcon />
+                      <span>再試行</span>
+                    </button>
+                  </div>
+                )
+                : (
+                  <div className='empty-state'>
+                    <span className='empty-table-icon' aria-hidden='true' />
+                    <strong>結果はまだ表示されていません</strong>
+                    <p>
+                      Excelファイルを選択し、アップロードを確定すると出力フォーマットを表示します。
+                    </p>
+                  </div>
+                )}
+            </section>
+
+            <footer className='sheet-footer'>
+              <div className='sheet-meta'>
+                <span>
+                  入力件数 {pickupConfirmation
+                    ? pickupConfirmation.stats.inputRows.toLocaleString('ja-JP')
+                    : '—'}
+                </span>
+                <span>
+                  在庫照合件数 {pickupConfirmation
+                    ? pickupConfirmation.stats.matchedRows.toLocaleString('ja-JP')
+                    : '—'}
+                </span>
+                <span>
+                  出力件数 {pickupConfirmation
+                    ? pickupConfirmation.stats.outputRows.toLocaleString('ja-JP')
+                    : '—'}
+                </span>
+                <span
+                  className={`status-badge${pickupStatus.kind === 'error' ? ' error' : ''}${
+                    pickupConfirmation ? ' success' : ''
                   }`}
                   role='status'
                   aria-live='polite'
                 >
-                  {downloadStatus.message || dataStatus.message}
+                  {pickupState}
                 </span>
-              )}
-            </div>
-
-            {data && (
-              <div className='pagination'>
-                <span>
-                  {((data.page - 1) * data.pageSize + 1).toLocaleString('ja-JP')}–
-                  {Math.min(data.page * data.pageSize, data.total).toLocaleString('ja-JP')}
-                </span>
-                <button
-                  type='button'
-                  onClick={() => setPage(1)}
-                  disabled={data.page <= 1 || dataStatus.kind === 'loading'}
-                  aria-label='最初のページ'
-                >
-                  «
-                </button>
-                <button
-                  type='button'
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  disabled={data.page <= 1 || dataStatus.kind === 'loading'}
-                  aria-label='前のページ'
-                >
-                  ‹
-                </button>
-                <span>
-                  {data.page.toLocaleString('ja-JP')} / {data.pageCount.toLocaleString('ja-JP')}
-                </span>
-                <button
-                  type='button'
-                  onClick={() => setPage((current) => Math.min(data.pageCount, current + 1))}
-                  disabled={data.page >= data.pageCount || dataStatus.kind === 'loading'}
-                  aria-label='次のページ'
-                >
-                  ›
-                </button>
-                <button
-                  type='button'
-                  onClick={() => setPage(data.pageCount)}
-                  disabled={data.page >= data.pageCount || dataStatus.kind === 'loading'}
-                  aria-label='最後のページ'
-                >
-                  »
-                </button>
               </div>
-            )}
-          </footer>
-        </>
-      )}
+            </footer>
+          </>
+        )}
+      </div>
 
-      {view === 'pickup' && (
-        <>
-          <section
-            className={`sheet-body pickup-body${pickupConfirmation ? ' has-preview' : ''}`}
-            aria-labelledby='pickup-file-title'
-          >
-            <div className='pickup-workspace'>
-              <div className='pickup-sheet'>
-                <div className='pickup-file-row' data-has-file={pickupFile ? 'true' : 'false'}>
-                  <span className='pickup-file-icon' aria-hidden='true'>XLSX</span>
-                  <div className='pickup-file-copy'>
-                    <strong id='pickup-file-title'>
-                      {pickupFile ? pickupFile.name : 'エラーリストをドロップ'}
-                    </strong>
-                    <span>
-                      {pickupConfirmation
-                        ? `${pickupConfirmation.stats.outputRows.toLocaleString('ja-JP')}件を表示中`
-                        : '画面のどこにドロップしても選択できます'}
-                    </span>
-                  </div>
-                  <div className='pickup-file-actions'>
-                    <label className='file-button'>
-                      ファイルを選択
-                      <input type='file' accept='.xlsx' onChange={selectPickupFile} />
-                    </label>
-                    <button
-                      className='confirm-button'
-                      type='button'
-                      onClick={confirmPickupUpload}
-                      disabled={!pickupFile || pickupStatus.kind === 'loading' ||
-                        Boolean(pickupConfirmation)}
-                    >
-                      {pickupStatus.kind === 'loading'
-                        ? '確認中…'
-                        : pickupConfirmation
-                        ? '確定済み'
-                        : 'アップロードを確定'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {pickupConfirmation && (
-                <section className='pickup-preview-panel' aria-labelledby='pickup-preview-title'>
-                  <div className='pickup-preview-heading'>
-                    <strong id='pickup-preview-title'>出力フォーマット</strong>
-                    <span>{pickupConfirmation.rows.length.toLocaleString('ja-JP')}件</span>
-                  </div>
-                  <div className='pickup-preview-scroll'>
-                    <table className='pickup-preview-table'>
-                      <thead>
-                        <tr>
-                          {pickupConfirmation.headers.map((header, index) => (
-                            <th key={`${header}-${index}`}>{header}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pickupConfirmation.rows.map((row, rowIndex) => (
-                          <tr key={`pickup-output-${rowIndex}`}>
-                            {row.map((value, columnIndex) => (
-                              <td key={`${rowIndex}-${columnIndex}`}>{value}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              )}
-            </div>
-          </section>
-
-          <footer className='sheet-footer'>
-            <div className='sheet-meta'>
-              {pickupConfirmation
-                ? (
-                  <>
-                    <span>
-                      入力{' '}
-                      <strong>
-                        {pickupConfirmation.stats.inputRows.toLocaleString('ja-JP')}
-                      </strong>件
-                    </span>
-                    <span>
-                      在庫一致{' '}
-                      <strong>
-                        {pickupConfirmation.stats.matchedRows.toLocaleString('ja-JP')}
-                      </strong>件
-                    </span>
-                    <span>
-                      出力{' '}
-                      <strong>
-                        {pickupConfirmation.stats.outputRows.toLocaleString('ja-JP')}
-                      </strong>件
-                    </span>
-                  </>
-                )
-                : <span>エラーリストを選択してください</span>}
-              {pickupStatus.message && (
-                <span
-                  className={`footer-message ${pickupStatus.kind === 'error' ? 'error' : ''}`}
-                  role='status'
-                  aria-live='polite'
-                >
-                  {pickupStatus.message}
-                </span>
-              )}
-            </div>
-          </footer>
-        </>
-      )}
+      <div className='toast-region' aria-live='polite'>
+        {toasts.map((toast) => (
+          <div className={`toast ${toast.kind}`} key={toast.id}>
+            <span aria-hidden='true' />
+            <p>{toast.message}</p>
+          </div>
+        ))}
+      </div>
     </main>
   );
 }
