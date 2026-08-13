@@ -37,7 +37,7 @@ resource "aws_ecs_task_definition" "app" {
       { name = "SHOE_DATA_BUCKET", value = var.shoe_data_bucket }
     ]
     healthCheck = {
-      command     = ["CMD-SHELL", "deno eval --allow-net=127.0.0.1 \"const r=await fetch('http://127.0.0.1:8000/health');if(!r.ok)Deno.exit(1)\""]
+      command     = ["CMD-SHELL", "deno eval \"const r=await fetch('http://127.0.0.1:8000/health');if(!r.ok)Deno.exit(1)\""]
       interval    = 30
       timeout     = 5
       retries     = 3
