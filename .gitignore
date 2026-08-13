@@ -3,6 +3,7 @@ node_modules/
 dist/
 client/.vite/
 .env
+.login-credentials
 terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/.terraform/
