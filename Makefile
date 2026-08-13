@@ -44,7 +44,8 @@ help:
 		'make deploy AWS_PROFILE=<profile> AWS_REGION=<region>'
 
 deploy:
-	@for command in aws docker jq sed; do \
+	@set -euo pipefail; \
+	for command in aws docker jq sed; do \
 		command -v "$${command}" >/dev/null || { \
 			echo "Required command is not available: $${command}" >&2; \
 			exit 1; \
