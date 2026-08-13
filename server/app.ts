@@ -94,10 +94,7 @@ export function createApp(
         page: resolvedPage,
         pageSize,
         pageCount,
-        source: {
-          bucket: dataset.bucket,
-          key: dataset.key,
-          etag: dataset.etag,
+        metadata: {
           lastModified: dataset.lastModified,
           loadedAt: dataset.loadedAt,
         },

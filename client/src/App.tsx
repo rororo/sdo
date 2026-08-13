@@ -24,10 +24,7 @@ interface ShoeDataResponse {
   page: number;
   pageSize: number;
   pageCount: number;
-  source: {
-    bucket: string;
-    key: string;
-    etag: string | null;
+  metadata: {
     lastModified: string | null;
     loadedAt: string;
   };
@@ -338,15 +335,7 @@ export function App() {
           <span>
             <strong>{data ? data.total.toLocaleString('ja-JP') : '—'}</strong>件
           </span>
-          <span>更新 {formatDate(data?.source.lastModified ?? null)}</span>
-          {data && (
-            <span
-              className='source-meta'
-              title={`s3://${data.source.bucket}/${data.source.key}`}
-            >
-              s3://{data.source.bucket}/{data.source.key}
-            </span>
-          )}
+          <span>更新 {formatDate(data?.metadata.lastModified ?? null)}</span>
           {(dataStatus.message || downloadStatus.message) && (
             <span
               className={`footer-message ${

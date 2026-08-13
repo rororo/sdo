@@ -373,14 +373,6 @@ tbody tr:hover td:first-child {
   font-size: 11px;
 }
 
-.sheet-meta .source-meta {
-  flex: 1 1 auto;
-  overflow: hidden;
-  max-width: 520px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  text-overflow: ellipsis;
-}
-
 .footer-message {
   overflow: hidden;
   color: var(--accent-dark);
@@ -491,7 +483,6 @@ input:focus-visible {
     min-height: 20px;
   }
 
-  .sheet-meta .source-meta,
   .sheet-meta .footer-message {
     display: none;
   }

@@ -121,7 +121,7 @@ export class S3ShoeDataSource implements ShoeDataSource {
         throw error;
       }
       throw new ShoeDataSourceError(
-        'S3の商品CSVを取得できませんでした。対象期間のデータとECSタスク権限を確認してください。',
+        '商品データを取得できませんでした。しばらくしてから再試行してください。',
         { cause: error },
       );
     }

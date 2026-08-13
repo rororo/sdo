@@ -88,7 +88,7 @@ Deno.test('login creates a session and logout clears it', async () => {
   assertStringIncludes(logout.headers.get('set-cookie') ?? '', 'Max-Age=0');
 });
 
-Deno.test('authenticated shoes endpoint returns paginated S3 data', async () => {
+Deno.test('authenticated shoes endpoint returns paginated product data', async () => {
   const records = Array.from({ length: 55 }, (_, index) => ({
     ...sampleProduct,
     internalCode: String(8_692_462 + index),
@@ -108,7 +108,13 @@ Deno.test('authenticated shoes endpoint returns paginated S3 data', async () => 
   assertEquals(body.pageCount, 2);
   assertEquals(body.records.length, 5);
   assertEquals(body.records[0].internalCode, String(8_692_462 + 50));
-  assertEquals(body.source.key, dataset().key);
+  assertEquals(body.metadata, {
+    lastModified: dataset().lastModified,
+    loadedAt: dataset().loadedAt,
+  });
+  assertEquals('bucket' in body.metadata, false);
+  assertEquals('key' in body.metadata, false);
+  assertEquals('etag' in body.metadata, false);
 });
 
 Deno.test('authenticated Excel download returns converted master data', async () => {
@@ -171,15 +177,19 @@ Deno.test('Excel download reports an unregistered master key', async () => {
   });
 });
 
-Deno.test('S3 read failure returns a gateway error', async () => {
+Deno.test('product data read failure returns a generic gateway error', async () => {
   const failedSource: ShoeDataSource = {
     getDataset: () => {
-      throw new ShoeDataSourceError('S3の商品CSVを取得できませんでした。');
+      throw new ShoeDataSourceError(
+        '商品データを取得できませんでした。しばらくしてから再試行してください。',
+      );
     },
   };
   const response = await createApp(auth, failedSource).request('/api/shoes', {
     headers: { Cookie: await loginCookie() },
   });
   assertEquals(response.status, 502);
-  assertEquals(await response.json(), { error: 'S3の商品CSVを取得できませんでした。' });
+  assertEquals(await response.json(), {
+    error: '商品データを取得できませんでした。しばらくしてから再試行してください。',
+  });
 });
