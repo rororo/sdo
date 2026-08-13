@@ -31,3 +31,7 @@ await Deno.copyFile(
   'server/data/department_item_master.csv',
   'dist/data/department_item_master.csv',
 );
+await Deno.copyFile(
+  'docs/pickup_list_output.xlsx',
+  'dist/data/pickup_list_template.xlsx',
+);

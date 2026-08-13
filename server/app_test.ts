@@ -2,7 +2,16 @@ import { assertEquals, assertStringIncludes } from '@std/assert';
 import ExcelJS from 'exceljs';
 import { createApp } from './app.ts';
 import type { AuthConfig } from './auth.ts';
+import {
+  PICKUP_SUBMISSION_HEADERS,
+  SAFE_SIZE_HEADERS,
+  type StoreInventoryRecord,
+} from './pickup_list.ts';
 import { type ShoeDataset, type ShoeDataSource, ShoeDataSourceError } from './shoe_data_source.ts';
+import type {
+  StoreInventoryDataset,
+  StoreInventoryDataSource,
+} from './store_inventory_data_source.ts';
 import { OUTPUT_HEADERS, type ShoeProductRecord } from './transformer.ts';
 
 const auth: AuthConfig = { username: 'test-user', password: 'test-password' };
@@ -23,6 +32,22 @@ const sampleProduct: ShoeProductRecord = {
   sizeSystem: 'JP',
 };
 
+const sampleInventory: StoreInventoryRecord = {
+  ean: '0196222995795',
+  department: '302',
+  departmentName: 'Ｍスキーブーツ',
+  threeDigitCode: '012',
+  manufacturerModel: 'KS240068 BFC 110 BOA',
+  brand: 'K2',
+  productName: 'BFC 110 BOA',
+  categoryName: 'レギュラーブーツ',
+  itemName: 'フリーライドブーツ',
+  internalCode: '8692462',
+  sizeName: '25.5',
+  storeCode: '10309',
+  storeName: 'テスト店舗',
+};
+
 function dataset(records: readonly ShoeProductRecord[] = [sampleProduct]): ShoeDataset {
   return {
     records,
@@ -36,6 +61,36 @@ function dataset(records: readonly ShoeProductRecord[] = [sampleProduct]): ShoeD
 
 function source(records: readonly ShoeProductRecord[] = [sampleProduct]): ShoeDataSource {
   return { getDataset: () => Promise.resolve(dataset(records)) };
+}
+
+function inventoryDataset(
+  records: readonly StoreInventoryRecord[] = [sampleInventory],
+): StoreInventoryDataset {
+  return {
+    records,
+    bucket: 'scanalytics-report',
+    key: 'sdo/shoe_store_inventory/shoe_store_inventory.csv',
+    etag: 'inventory-etag',
+    lastModified: '2026-08-13T06:15:00.000Z',
+    loadedAt: '2026-08-13T06:20:00.000Z',
+  };
+}
+
+function inventorySource(
+  records: readonly StoreInventoryRecord[] = [sampleInventory],
+): StoreInventoryDataSource {
+  return { getDataset: () => Promise.resolve(inventoryDataset(records)) };
+}
+
+async function errorListFile(eans: readonly string[]): Promise<File> {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('SafeSize errors');
+  sheet.addRow([...SAFE_SIZE_HEADERS]);
+  eans.forEach((ean) => sheet.addRow([ean]));
+  const bytes = Uint8Array.from(await workbook.xlsx.writeBuffer() as unknown as Uint8Array);
+  return new File([bytes], 'errors.xlsx', {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
 }
 
 async function loginCookie(): Promise<string> {
@@ -61,6 +116,8 @@ Deno.test('application APIs reject unauthenticated requests', async () => {
   assertEquals((await app.request('/api/auth/session')).status, 401);
   assertEquals((await app.request('/api/shoes')).status, 401);
   assertEquals((await app.request('/api/shoes.xlsx')).status, 401);
+  assertEquals((await app.request('/api/pickup-list.xlsx', { method: 'POST' })).status, 401);
+  assertEquals((await app.request('/api/pickup-list', { method: 'POST' })).status, 401);
 });
 
 Deno.test('login rejects incorrect credentials', async () => {
@@ -156,6 +213,105 @@ Deno.test('authenticated Excel download returns converted master data', async ()
     '8692462',
     null,
   ]);
+});
+
+Deno.test('authenticated pickup-list upload returns the submission workbook', async () => {
+  const form = new FormData();
+  form.set('file', await errorListFile([sampleInventory.ean]));
+  const response = await createApp(auth, source(), inventorySource()).request(
+    '/api/pickup-list.xlsx',
+    {
+      method: 'POST',
+      headers: { Cookie: await loginCookie() },
+      body: form,
+    },
+  );
+
+  assertEquals(response.status, 200);
+  assertStringIncludes(response.headers.get('content-disposition') ?? '', 'pickup_list_');
+  assertEquals(response.headers.get('x-input-rows'), '1');
+  assertEquals(response.headers.get('x-matched-rows'), '1');
+  assertEquals(response.headers.get('x-processed-rows'), '1');
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(
+    new Uint8Array(await response.arrayBuffer()) as unknown as Parameters<
+      typeof workbook.xlsx.load
+    >[0],
+  );
+  const sheet = workbook.getWorksheet('ピックアップ');
+  if (!sheet) throw new Error('Pickup list worksheet was not generated.');
+  assertEquals(sheet.getCell('P3').value, sampleInventory.internalCode);
+  assertEquals(sheet.getCell('Q3').value, sampleInventory.storeCode);
+});
+
+Deno.test('authenticated pickup-list confirmation returns its preview and workbook', async () => {
+  const form = new FormData();
+  form.set('file', await errorListFile([sampleInventory.ean]));
+  const response = await createApp(auth, source(), inventorySource()).request(
+    '/api/pickup-list',
+    {
+      method: 'POST',
+      headers: { Cookie: await loginCookie() },
+      body: form,
+    },
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get('cache-control'), 'no-store');
+  const body = await response.json() as {
+    filename: string;
+    headers: string[];
+    rows: Array<Array<string | number>>;
+    stats: { inputRows: number; matchedRows: number; outputRows: number };
+    workbookBase64: string;
+  };
+  assertStringIncludes(body.filename, 'pickup_list_');
+  assertEquals(body.headers, [...PICKUP_SUBMISSION_HEADERS]);
+  assertEquals(body.rows, [[
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    1,
+    '302',
+    'Ｍスキーブーツ',
+    '012',
+    'KS240068 BFC 110 BOA',
+    'K2',
+    'BFC 110 BOA',
+    'レギュラーブーツ',
+    'フリーライドブーツ',
+    '8692462',
+    '10309',
+    'テスト店舗',
+  ]]);
+  assertEquals(body.stats, { inputRows: 1, matchedRows: 1, outputRows: 1 });
+
+  const workbook = new ExcelJS.Workbook();
+  const workbookBytes = Uint8Array.from(atob(body.workbookBase64), (value) => value.charCodeAt(0));
+  await workbook.xlsx.load(
+    workbookBytes as unknown as Parameters<typeof workbook.xlsx.load>[0],
+  );
+  assertEquals(workbook.getWorksheet('ピックアップ')?.getCell('P3').value, '8692462');
+});
+
+Deno.test('pickup-list confirmation rejects a non-xlsx upload', async () => {
+  const form = new FormData();
+  form.set('file', new File(['not an Excel workbook'], 'errors.csv'));
+  const response = await createApp(auth, source(), inventorySource()).request(
+    '/api/pickup-list',
+    {
+      method: 'POST',
+      headers: { Cookie: await loginCookie() },
+      body: form,
+    },
+  );
+
+  assertEquals(response.status, 400);
+  assertEquals(await response.json(), { error: 'Excel（.xlsx）ファイルを選択してください。' });
 });
 
 Deno.test('Excel download reports an unregistered master key', async () => {

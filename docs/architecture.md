@@ -11,16 +11,26 @@
 「Excelをダウンロード」は`GET /api/shoes.xlsx`を呼び出し、現在の全商品を固定マスタと照合して
 21列の登録用ワークブックを生成します。商品CSVと生成ファイルは永続化せず、メモリ上で処理します。
 
+「ピックアップリスト」では、ファイル選択後の確定操作でSafeSizeエラーリストを
+`POST /api/pickup-list`へ送信します。APIは2店舗の在庫CSVを取得し、指定された進捗管理・提出
+フォーマットの18列データと、同じ処理で生成したワークブックを返します。ブラウザは18列データを
+表として表示し、ワークブックはダウンロード操作までメモリ上に保持します。在庫CSVは商品CSVとは
+別に1時間メモリキャッシュし、アップロードファイルと生成ファイルは永続化しません。
+
 ```text
 Browser -- GET /api/shoes ------> Hono API -- GetObject --> S3 product CSV
         -- GET /api/shoes.xlsx ->          -- lookup ----> fixed master CSV
                                               |
                                               +----------> generated Excel
+        -- POST /api/pickup-list ----------> GetObject --> S3 inventory CSV
+                                              |
+                 SafeSize error workbook -----+----------> 18-column preview + Excel
 ```
 
 画面はReactとVite、APIはHono、S3取得と変換はDeno/TypeScriptで構成し、1つのDockerコンテナで
 実行します。商品CSVの解析とExcel生成は`server/transformer.ts`、S3の対象期計算・取得・キャッシュは
-`server/shoe_data_source.ts`に集約しています。
+`server/shoe_data_source.ts`に集約しています。ピックアップリストの照合とExcel生成は
+`server/pickup_list.ts`、在庫取得とキャッシュは`server/store_inventory_data_source.ts`が担当します。
 
 ログイン前は認証画面だけを表示します。ユーザー名とパスワードは実行環境の環境変数から読み込み、
 認証後は署名と有効期限を持つHttpOnly Cookieを発行します。商品API、Excel API、セッションAPIは
@@ -42,8 +52,8 @@ Deployment -> ECR -> ECS Fargate
 - CloudFront: HTTPS終端、動的リクエスト転送、キャッシュ無効化
 - Application Load Balancer: ヘルスチェックとECSへの負荷分散
 - ECS Fargate: Dockerコンテナの実行
-- ECSタスクロール: `sdo/shoe_products/*`に限定した`GetObject`権限
-- S3: 日次更新される商品CSVの保管
+- ECSタスクロール: 商品CSVと店舗在庫CSVに限定した`GetObject`権限
+- S3: 定期更新される商品CSVと店舗在庫CSVの保管
 - ECR: Dockerイメージの保管
 - CloudWatch Logs: アプリケーションログの保管
 

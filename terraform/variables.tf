@@ -23,7 +23,7 @@ variable "desired_count" {
 }
 
 variable "shoe_data_bucket" {
-  description = "S3 bucket containing the shoe product CSV"
+  description = "S3 bucket containing the shoe product and store inventory CSVs"
   type        = string
   default     = "scanalytics-report"
 }

@@ -165,6 +165,7 @@ h1 {
 
 .sheet-app {
   display: grid;
+  position: relative;
   grid-template-rows: 58px minmax(0, 1fr) 40px;
   width: 100%;
   height: 100vh;
@@ -180,6 +181,13 @@ h1 {
   padding: 8px 14px;
   border-bottom: 1px solid var(--line);
   background: #f9fbfa;
+}
+
+.sheet-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 18px;
 }
 
 .sheet-title {
@@ -208,6 +216,35 @@ h1 {
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.view-switcher {
+  display: flex;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 1px solid #d6dfe1;
+  border-radius: 8px;
+  background: #edf2f1;
+}
+
+.view-switcher a {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.view-switcher a.active {
+  color: var(--ink);
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(23 41 56 / 12%);
 }
 
 .toolbar-actions {
@@ -274,6 +311,281 @@ h1 {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.pickup-body {
+  display: grid;
+  overflow: auto;
+  padding: 42px;
+  place-items: center;
+  background-color: #fbfcfc;
+  background-image: linear-gradient(#edf1f2 1px, transparent 1px),
+    linear-gradient(90deg, #edf1f2 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.pickup-workspace {
+  width: 100%;
+}
+
+.pickup-sheet {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  border: 1px solid #cbd6d9;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 18px 50px rgb(23 41 56 / 10%);
+}
+
+.pickup-file-row {
+  display: flex;
+  min-height: 310px;
+  padding: 48px 32px;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+}
+
+.pickup-file-row[data-has-file='true'] {
+  background: linear-gradient(180deg, #fff 0%, #f5fbf9 100%);
+}
+
+.pickup-file-icon {
+  display: grid;
+  width: 70px;
+  height: 70px;
+  place-items: center;
+  border-radius: 18px;
+  color: white;
+  background: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  box-shadow: 0 12px 30px rgb(8 125 112 / 20%);
+}
+
+.pickup-file-copy {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.pickup-file-copy strong {
+  overflow: hidden;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickup-file-copy span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pickup-file-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.file-button {
+  display: inline-flex;
+  min-height: 36px;
+  flex: 0 0 auto;
+  padding: 8px 13px;
+  align-items: center;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  color: var(--accent-dark);
+  background: #f5fbf9;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.file-button:hover {
+  background: #eaf6f3;
+}
+
+.file-button input {
+  display: none;
+}
+
+.confirm-button {
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  color: white;
+  background: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.confirm-button:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+
+.pickup-body.has-preview {
+  overflow: hidden;
+  padding: 14px;
+  place-items: stretch;
+}
+
+.has-preview .pickup-workspace {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+}
+
+.has-preview .pickup-sheet {
+  width: 100%;
+  margin: 0;
+  border-radius: 10px;
+  box-shadow: 0 5px 18px rgb(23 41 56 / 8%);
+}
+
+.has-preview .pickup-file-row {
+  min-height: 0;
+  padding: 12px 16px;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 12px;
+  text-align: left;
+}
+
+.has-preview .pickup-file-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.has-preview .pickup-file-copy {
+  flex: 1 1 auto;
+}
+
+.has-preview .pickup-file-copy strong {
+  font-size: 13px;
+}
+
+.has-preview .pickup-file-copy span {
+  font-size: 11px;
+}
+
+.pickup-preview-panel {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: 42px minmax(0, 1fr);
+  border: 1px solid #cbd6d9;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(23 41 56 / 8%);
+}
+
+.pickup-preview-heading {
+  display: flex;
+  padding: 0 14px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #d7e0e2;
+  background: #f7faf9;
+}
+
+.pickup-preview-heading strong {
+  font-size: 13px;
+}
+
+.pickup-preview-heading span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.pickup-preview-scroll {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.pickup-preview-table th,
+.pickup-preview-table td {
+  min-width: 120px;
+}
+
+.pickup-preview-table th:nth-child(-n+6),
+.pickup-preview-table td:nth-child(-n+6) {
+  min-width: 92px;
+}
+
+.pickup-preview-table th:nth-child(7),
+.pickup-preview-table td:nth-child(7) {
+  min-width: 58px;
+  text-align: right;
+}
+
+.pickup-preview-table th:nth-child(11),
+.pickup-preview-table td:nth-child(11),
+.pickup-preview-table th:nth-child(13),
+.pickup-preview-table td:nth-child(13) {
+  min-width: 190px;
+}
+
+.pickup-preview-table tbody tr:nth-child(even) td {
+  background: #fafcfc;
+}
+
+.file-drop-overlay {
+  display: grid;
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  padding: 18px;
+  place-items: center;
+  pointer-events: none;
+  background: rgb(244 250 248 / 94%);
+  backdrop-filter: blur(3px);
+}
+
+.file-drop-overlay::before {
+  position: absolute;
+  inset: 18px;
+  border: 3px dashed var(--accent);
+  border-radius: 22px;
+  content: '';
+}
+
+.file-drop-overlay > div {
+  display: grid;
+  position: relative;
+  gap: 18px;
+  place-items: center;
+  color: var(--accent-dark);
+}
+
+.file-drop-overlay strong {
+  font-size: clamp(24px, 4vw, 42px);
+  letter-spacing: -.02em;
+}
+
+.file-drop-icon {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: var(--accent);
+  font-size: 36px;
+  box-shadow: 0 18px 40px rgb(8 125 112 / 24%);
 }
 
 .table-scroll {
@@ -450,7 +762,8 @@ tbody tr:hover td:first-child {
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+a:focus-visible {
   outline: 3px solid rgb(8 125 112 / 30%);
   outline-offset: 2px;
 }
@@ -463,6 +776,18 @@ input:focus-visible {
   .sheet-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .sheet-heading {
+    gap: 8px;
+  }
+
+  .sheet-heading .sheet-title {
+    flex: 1 1 auto;
+  }
+
+  .view-switcher a {
+    padding-inline: 7px;
   }
 
   .toolbar-actions {
@@ -494,5 +819,33 @@ input:focus-visible {
   .login-card {
     padding: 30px 24px;
     border-radius: 18px;
+  }
+
+  .pickup-body {
+    padding: 20px;
+  }
+
+  .pickup-file-row {
+    min-height: 260px;
+    padding: 36px 20px;
+  }
+
+  .pickup-body.has-preview {
+    padding: 8px;
+  }
+
+  .has-preview .pickup-file-row {
+    padding: 10px;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .has-preview .pickup-file-copy {
+    width: calc(100% - 54px);
+  }
+
+  .has-preview .pickup-file-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }

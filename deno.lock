@@ -14,6 +14,7 @@
     "npm:archiver@^5.3.2": "5.3.2",
     "npm:esbuild@0.27.3": "0.27.3",
     "npm:exceljs@^4.4.0": "4.4.0",
+    "npm:fflate@~0.8.2": "0.8.3",
     "npm:hono@^4.11.4": "4.13.1",
     "npm:react-dom@^19.2.4": "19.2.8_react@19.2.8",
     "npm:react@^19.2.4": "19.2.8",
@@ -946,6 +947,9 @@
         "picomatch"
       ]
     },
+    "fflate@0.8.3": {
+      "integrity": "sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA=="
+    },
     "fs-constants@1.0.0": {
       "integrity": "sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow=="
     },
@@ -1490,6 +1494,7 @@
       "npm:archiver@^5.3.2",
       "npm:esbuild@0.27.3",
       "npm:exceljs@^4.4.0",
+      "npm:fflate@~0.8.2",
       "npm:hono@^4.11.4",
       "npm:react-dom@^19.2.4",
       "npm:react@^19.2.4",

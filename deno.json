@@ -9,6 +9,7 @@
     "@std/assert": "jsr:@std/assert@^1.0.18",
     "esbuild": "npm:esbuild@0.27.3",
     "exceljs": "npm:exceljs@^4.4.0",
+    "fflate": "npm:fflate@^0.8.2",
     "hono": "npm:hono@^4.11.4",
     "archiver": "npm:archiver@^5.3.2",
     "react": "npm:react@^19.2.4",

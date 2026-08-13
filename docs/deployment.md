@@ -38,7 +38,7 @@ terraform -chdir=terraform plan
 terraform -chdir=terraform apply
 ```
 
-TerraformはECSタスクロールへ、指定バケットの`sdo/shoe_products/*`だけを読み取れる
+TerraformはECSタスクロールへ、指定バケットの商品CSVと店舗在庫CSVだけを読み取れる
 `s3:GetObject`権限を設定します。アクセスキーはコンテナへ渡さず、ECSタスクロールを使用します。
 
 ## アプリケーション更新
@@ -75,7 +75,8 @@ deno task dev
 ローカルではAWS SDKが`.env`の`AWS_PROFILE`を使用して`~/.aws/config`と
 `~/.aws/credentials`から認証情報を読み取ります。初期値は`xebio`です。別のプロファイルを使う場合は
 `.env`だけを変更してください。特定キーで確認する場合だけ`.env`の`SHOE_DATA_KEY`を設定します。
-本番では`AWS_PROFILE`と`SHOE_DATA_KEY`を設定せず、ECSタスクロールとJSTの現在月から計算したキーを
+在庫キーを切り替えるローカル確認では`SHOE_INVENTORY_KEY`を設定できます。本番では
+`AWS_PROFILE`、`SHOE_DATA_KEY`、`SHOE_INVENTORY_KEY`を設定せず、ECSタスクロールと既定キーを
 使用します。
 
 ```bash

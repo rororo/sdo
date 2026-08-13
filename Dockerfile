@@ -5,6 +5,7 @@ COPY deno.json deno.lock* ./
 COPY client ./client
 COPY server ./server
 COPY scripts ./scripts
+COPY docs/pickup_list_output.xlsx ./docs/pickup_list_output.xlsx
 RUN deno task build
 
 FROM denoland/deno:debian-2.9.1 AS runtime
