@@ -60,4 +60,4 @@ Deployment -> ECR -> ECS Fargate
 
 ALBのセキュリティグループはAWS管理のCloudFrontオリジン向けプレフィックスリストだけを許可します。
 加えて、CloudFrontが付与するランダムなヘッダー値をALBリスナールールで検証します。
-WAFのIP許可リストは保持していますが、CloudFrontへの関連付けは一時的に無効化しています。
+CloudFrontにはWAFを関連付け、IP許可リストに含まれる接続元だけを許可します。
