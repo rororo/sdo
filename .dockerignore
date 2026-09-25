@@ -1,7 +1,12 @@
 .git
 .deno
+.env
+.login-credentials
 node_modules
 dist
 client/.vite
 terraform
 deploy
+docs
+integration
+outputs

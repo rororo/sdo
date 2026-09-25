@@ -1,5 +1,8 @@
 import { assertEquals, assertThrows } from '@std/assert';
-import { DEPARTMENT_ITEM_MASTER, parseDepartmentItemMasterCsv } from './department_item_master.ts';
+import {
+  DEPARTMENT_ITEM_MASTER,
+  parseDepartmentItemMasterCsv,
+} from './department-item-master-repository.ts';
 
 const HEADER =
   'key,department,department_name,category,category_name,item,item_name,gender,age_group,sport_category,spike';

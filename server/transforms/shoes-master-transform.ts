@@ -1,8 +1,8 @@
 import archiver from 'archiver';
 import { Buffer } from 'node:buffer';
 import { PassThrough } from 'node:stream';
-import { parseCsv } from './csv.ts';
-import { DEPARTMENT_ITEM_MASTER } from './department_item_master.ts';
+import { DEPARTMENT_ITEM_MASTER } from '../repositories/department-item-master-repository.ts';
+import { parseCsv } from '../utils/csv.ts';
 
 const OUTPUT_SHEET_NAME = 'Master Data2026FW②';
 
@@ -96,6 +96,8 @@ const OUTPUT_WIDTHS = [
 
 type OutputValue = string | number | boolean | Date | null;
 
+export type ShoeMasterRow = readonly OutputValue[];
+
 export interface ShoeProductRecord {
   department: string;
   departmentName: string;
@@ -127,11 +129,6 @@ export const SHOE_PRODUCT_FIELDS = [
   { key: 'size', label: 'Size' },
   { key: 'sizeSystem', label: 'SizeSys' },
 ] as const satisfies readonly { key: keyof ShoeProductRecord; label: string }[];
-
-export interface TransformResult {
-  bytes: Uint8Array;
-  processedRows: number;
-}
 
 export class WorkbookValidationError extends Error {
   constructor(message: string) {
@@ -363,7 +360,7 @@ function rowXml(rowNumber: number, values: readonly OutputValue[], options?: {
   return `<row r="${rowNumber}"${height}>${cells}</row>`;
 }
 
-function worksheetXml(rows: readonly OutputValue[][]): string {
+function worksheetXml(rows: readonly ShoeMasterRow[]): string {
   const dataRows = rows.map((values, index) => rowXml(index + 5, values)).join('');
   const widths = OUTPUT_WIDTHS.map((width, index) =>
     `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`
@@ -390,7 +387,7 @@ function worksheetXml(rows: readonly OutputValue[][]): string {
 </worksheet>`;
 }
 
-async function createOutputWorkbook(rows: readonly OutputValue[][]): Promise<Uint8Array> {
+async function createOutputWorkbook(rows: readonly ShoeMasterRow[]): Promise<Uint8Array> {
   const files = new Map<string, string>();
   files.set(
     '[Content_Types].xml',
@@ -472,24 +469,21 @@ async function createOutputWorkbook(rows: readonly OutputValue[][]): Promise<Uin
   return new Uint8Array(Buffer.concat(chunks));
 }
 
-export async function createShoeMasterWorkbook(
+export function step1ConvertSourceRows(
   products: readonly ShoeProductRecord[],
-): Promise<TransformResult> {
+): ShoeMasterRow[] {
   if (products.length === 0) {
     throw new WorkbookValidationError('商品CSVに変換対象のデータ行がありません。');
   }
-  const rows = products.map((product, index) => convertedValues(sourceValues(product), index + 2));
-  const bytes = await createOutputWorkbook(rows);
-  return { bytes, processedRows: rows.length };
+  return products.map((product, index) => convertedValues(sourceValues(product), index + 2));
+}
+
+export async function step2CreateMasterWorkbook(
+  rows: readonly ShoeMasterRow[],
+): Promise<Uint8Array> {
+  return await createOutputWorkbook(rows);
 }
 
 export function validateShoeProducts(products: readonly ShoeProductRecord[]): void {
-  if (products.length === 0) {
-    throw new WorkbookValidationError('商品CSVに変換対象のデータ行がありません。');
-  }
-  products.forEach((product, index) => convertedValues(sourceValues(product), index + 2));
-}
-
-export async function transformShoeProductCsv(text: string): Promise<TransformResult> {
-  return await createShoeMasterWorkbook(parseShoeProductCsv(text));
+  step1ConvertSourceRows(products);
 }

@@ -1,12 +1,13 @@
-import { assertEquals, assertRejects } from '@std/assert';
+import { assertEquals, assertThrows } from '@std/assert';
 import ExcelJS from 'exceljs';
 import {
-  createShoeMasterWorkbook,
   OUTPUT_HEADERS,
   parseShoeProductCsv,
   SOURCE_HEADERS,
+  step1ConvertSourceRows,
+  step2CreateMasterWorkbook,
   WorkbookValidationError,
-} from './transformer.ts';
+} from './shoes-master-transform.ts';
 
 const validRow = [
   '302',
@@ -54,12 +55,13 @@ Deno.test('product CSV parser rejects an invalid column count', () => {
 
 Deno.test('CSV product data is converted to the master workbook', async () => {
   const products = parseShoeProductCsv(`${SOURCE_HEADERS.join(',')}\n${validRow.join(',')}\n`);
-  const result = await createShoeMasterWorkbook(products);
-  assertEquals(result.processedRows, 1);
+  const rows = step1ConvertSourceRows(products);
+  const bytes = await step2CreateMasterWorkbook(rows);
+  assertEquals(rows.length, 1);
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(
-    result.bytes as unknown as Parameters<typeof workbook.xlsx.load>[0],
+    bytes as unknown as Parameters<typeof workbook.xlsx.load>[0],
   );
   const sheet = workbook.getWorksheet('Master Data2026FW②');
   if (!sheet) throw new Error('Output sheet was not generated.');
@@ -71,14 +73,14 @@ Deno.test('CSV product data is converted to the master workbook', async () => {
   assertEquals(sheet.getCell('G5').value, 25.5);
 });
 
-Deno.test('CSV product validation rejects unknown fixed-master keys', async () => {
+Deno.test('CSV product validation rejects unknown fixed-master keys', () => {
   const row = [...validRow];
   row[0] = '999';
   row[2] = '9';
   row[4] = '9';
   const products = parseShoeProductCsv(`${SOURCE_HEADERS.join(',')}\n${row.join(',')}\n`);
-  await assertRejects(
-    () => createShoeMasterWorkbook(products),
+  assertThrows(
+    () => step1ConvertSourceRows(products),
     WorkbookValidationError,
     '2行目の部門・品種・品目（999 / 9 / 9）',
   );

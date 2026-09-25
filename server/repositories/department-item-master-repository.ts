@@ -1,4 +1,4 @@
-import { parseCsv } from './csv.ts';
+import { parseCsv } from '../utils/csv.ts';
 
 export interface DepartmentItemAttributes {
   gender: string;
@@ -64,7 +64,21 @@ export function parseDepartmentItemMasterCsv(
   return Object.freeze(master);
 }
 
-const masterCsvUrl = new URL('./data/department_item_master.csv', import.meta.url);
+function readDepartmentItemMasterCsv(): string {
+  const candidates = [
+    new URL('./data/department-item-master.csv', import.meta.url),
+    new URL('../data/department-item-master.csv', import.meta.url),
+  ];
+  for (const candidate of candidates) {
+    try {
+      return Deno.readTextFileSync(candidate);
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+  }
+  throw new Error('Department item master was not found.');
+}
+
 export const DEPARTMENT_ITEM_MASTER = parseDepartmentItemMasterCsv(
-  Deno.readTextFileSync(masterCsvUrl),
+  readDepartmentItemMasterCsv(),
 );

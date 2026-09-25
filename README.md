@@ -16,7 +16,7 @@ S3へ定期連携されるシューズ商品CSVを、ログイン後の画面に
 エラー条件は [`docs/shoes-master-spec.md`](docs/shoes-master-spec.md) と
 [`docs/pickup-list-spec.md`](docs/pickup-list-spec.md) を参照してください。
 
-固定マスタは `server/data/department_item_master.csv` で管理します。CSVを変更した場合も
+固定マスタは `server/data/department-item-master.csv` で管理します。CSVを変更した場合も
 アプリケーションコードの変更は不要です。
 
 ## ローカル起動

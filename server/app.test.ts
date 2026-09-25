@@ -1,18 +1,22 @@
 import { assertEquals, assertStringIncludes } from '@std/assert';
 import ExcelJS from 'exceljs';
-import { createApp } from './app.ts';
-import { type AuthConfig, createPasswordHash } from './auth.ts';
+import { createApp, createRequestHandler } from './app.ts';
+import {
+  type ShoeProductsDataset,
+  type ShoeProductsRepository,
+  ShoeProductsRepositoryError,
+} from './repositories/shoe-products-repository.ts';
+import type {
+  StoreInventoryDataset,
+  StoreInventoryRepository,
+} from './repositories/store-inventory-repository.ts';
 import {
   PICKUP_SUBMISSION_HEADERS,
   SAFE_SIZE_HEADERS,
   type StoreInventoryRecord,
-} from './pickup_list.ts';
-import { type ShoeDataset, type ShoeDataSource, ShoeDataSourceError } from './shoe_data_source.ts';
-import type {
-  StoreInventoryDataset,
-  StoreInventoryDataSource,
-} from './store_inventory_data_source.ts';
-import { OUTPUT_HEADERS, type ShoeProductRecord } from './transformer.ts';
+} from './transforms/pickup-list-transform.ts';
+import { OUTPUT_HEADERS, type ShoeProductRecord } from './transforms/shoes-master-transform.ts';
+import { type AuthConfig, createPasswordHash } from './utils/auth-session.ts';
 
 const TEST_PASSWORD = 'test-password';
 const auth: AuthConfig = {
@@ -55,7 +59,7 @@ const sampleInventory: StoreInventoryRecord = {
   storeName: 'テスト店舗',
 };
 
-function dataset(records: readonly ShoeProductRecord[] = [sampleProduct]): ShoeDataset {
+function dataset(records: readonly ShoeProductRecord[] = [sampleProduct]): ShoeProductsDataset {
   return {
     records,
     bucket: 'scanalytics-report',
@@ -66,7 +70,7 @@ function dataset(records: readonly ShoeProductRecord[] = [sampleProduct]): ShoeD
   };
 }
 
-function source(records: readonly ShoeProductRecord[] = [sampleProduct]): ShoeDataSource {
+function source(records: readonly ShoeProductRecord[] = [sampleProduct]): ShoeProductsRepository {
   return { getDataset: () => Promise.resolve(dataset(records)) };
 }
 
@@ -85,14 +89,17 @@ function inventoryDataset(
 
 function inventorySource(
   records: readonly StoreInventoryRecord[] = [sampleInventory],
-): StoreInventoryDataSource {
+): StoreInventoryRepository {
   return { getDataset: () => Promise.resolve(inventoryDataset(records)) };
 }
 
-async function errorListFile(eans: readonly string[]): Promise<File> {
+async function errorListFile(
+  eans: readonly string[],
+  headers: readonly string[] = SAFE_SIZE_HEADERS,
+): Promise<File> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('SafeSize errors');
-  sheet.addRow([...SAFE_SIZE_HEADERS]);
+  sheet.addRow([...headers]);
   eans.forEach((ean) => sheet.addRow([ean]));
   const bytes = Uint8Array.from(await workbook.xlsx.writeBuffer() as unknown as Uint8Array);
   return new File([bytes], 'errors.xlsx', {
@@ -118,6 +125,36 @@ Deno.test('health endpoint is public', async () => {
   assertEquals(await response.json(), { status: 'ok' });
 });
 
+Deno.test('request handler serves client assets and the SPA fallback', async () => {
+  const clientRootPath = await Deno.makeTempDir();
+  try {
+    await Deno.writeTextFile(
+      `${clientRootPath}/index.html`,
+      '<!doctype html><title>Spreadsheet console</title>',
+    );
+    await Deno.writeTextFile(`${clientRootPath}/app.css`, 'body { color: black; }');
+    const clientRoot = new URL(`file://${clientRootPath}/`);
+    const handler = createRequestHandler(createApp(auth, source(), inventorySource()), clientRoot);
+
+    const asset = await handler(new Request('http://localhost/app.css'));
+    assertEquals(asset.status, 200);
+    assertEquals(asset.headers.get('content-type'), 'text/css; charset=utf-8');
+    assertEquals(await asset.text(), 'body { color: black; }');
+
+    const fallback = await handler(new Request('http://localhost/pickup-list'));
+    assertEquals(fallback.status, 200);
+    assertEquals(fallback.headers.get('content-type'), 'text/html; charset=utf-8');
+    assertStringIncludes(await fallback.text(), 'Spreadsheet console');
+
+    const methodNotAllowed = await handler(
+      new Request('http://localhost/pickup-list', { method: 'POST' }),
+    );
+    assertEquals(methodNotAllowed.status, 405);
+  } finally {
+    await Deno.remove(clientRootPath, { recursive: true });
+  }
+});
+
 Deno.test('application APIs reject unauthenticated requests', async () => {
   const app = createApp(auth, source());
   assertEquals((await app.request('/api/auth/session')).status, 401);
@@ -125,6 +162,79 @@ Deno.test('application APIs reject unauthenticated requests', async () => {
   assertEquals((await app.request('/api/shoes.xlsx')).status, 401);
   assertEquals((await app.request('/api/pickup-list.xlsx', { method: 'POST' })).status, 401);
   assertEquals((await app.request('/api/pickup-list', { method: 'POST' })).status, 401);
+});
+
+Deno.test('unsupported login methods remain public 404 responses', async () => {
+  const app = createApp(auth, source(), inventorySource());
+  for (const method of ['GET', 'PUT', 'OPTIONS']) {
+    const response = await app.request('/api/auth/login', { method });
+    assertEquals(response.status, 404, method);
+    assertEquals(await response.text(), '404 Not Found', method);
+  }
+});
+
+Deno.test('unsupported protected API methods still require authentication', async () => {
+  const app = createApp(auth, source(), inventorySource());
+  for (
+    const [method, path] of [
+      ['POST', '/api/auth/session'],
+      ['GET', '/api/auth/logout'],
+      ['POST', '/api/shoes'],
+      ['GET', '/api/pickup-list'],
+      ['GET', '/api/unknown'],
+    ] as const
+  ) {
+    const response = await app.request(path, { method });
+    assertEquals(response.status, 401, `${method} ${path}`);
+    assertEquals(await response.json(), { error: 'ログインが必要です。' }, `${method} ${path}`);
+  }
+});
+
+Deno.test('feature routes authenticate only once at the session expiry boundary', async () => {
+  const cookie = await loginCookie();
+  const token = cookie.slice(cookie.indexOf('=') + 1);
+  const encodedPayload = token.split('.')[0];
+  if (!encodedPayload) throw new Error('Session token payload was not returned.');
+  const payload = JSON.parse(
+    new TextDecoder().decode(
+      Uint8Array.fromBase64(encodedPayload, { alphabet: 'base64url' }),
+    ),
+  ) as { expiresAt?: number };
+  if (typeof payload.expiresAt !== 'number') {
+    throw new Error('Session token expiry was not returned.');
+  }
+
+  const originalNow = Date.now;
+  const requestAtBoundary = async (request: () => Response | Promise<Response>) => {
+    let checks = 0;
+    Date.now = () => ++checks === 1 ? payload.expiresAt! - 1 : payload.expiresAt! + 1;
+    try {
+      const response = await request();
+      assertEquals(checks, 1);
+      return response;
+    } finally {
+      Date.now = originalNow;
+    }
+  };
+
+  const app = createApp(auth, source(), inventorySource());
+  const session = await requestAtBoundary(() =>
+    app.request('/api/auth/session', { headers: { Cookie: cookie } })
+  );
+  assertEquals(session.status, 200);
+
+  const shoes = await requestAtBoundary(() =>
+    app.request('/api/shoes', { headers: { Cookie: cookie } })
+  );
+  assertEquals(shoes.status, 200);
+
+  const pickup = await requestAtBoundary(() =>
+    app.request('/api/pickup-list', {
+      method: 'POST',
+      headers: { Cookie: cookie },
+    })
+  );
+  assertEquals(pickup.status, 400);
 });
 
 Deno.test('login rejects incorrect credentials', async () => {
@@ -157,10 +267,10 @@ Deno.test('authenticated shoes endpoint returns paginated product data', async (
     ...sampleProduct,
     internalCode: String(8_692_462 + index),
   }));
-  const dataSource: ShoeDataSource = {
+  const repository: ShoeProductsRepository = {
     getDataset: () => Promise.resolve(dataset(records)),
   };
-  const response = await createApp(auth, dataSource).request(
+  const response = await createApp(auth, repository).request(
     '/api/shoes?page=2&pageSize=50',
     { headers: { Cookie: await loginCookie() } },
   );
@@ -305,6 +415,42 @@ Deno.test('authenticated pickup-list confirmation returns its preview and workbo
   assertEquals(workbook.getWorksheet('ピックアップ')?.getCell('P3').value, '8692462');
 });
 
+for (const endpoint of ['/api/pickup-list', '/api/pickup-list.xlsx']) {
+  Deno.test(`${endpoint} accepts an EAN-only scan list`, async () => {
+    const form = new FormData();
+    form.set('file', await errorListFile([sampleInventory.ean], ['EAN']));
+    const response = await createApp(auth, source(), inventorySource()).request(endpoint, {
+      method: 'POST',
+      headers: { Cookie: await loginCookie() },
+      body: form,
+    });
+    assertEquals(response.status, 200);
+
+    let bytes: Uint8Array;
+    if (endpoint.endsWith('.xlsx')) {
+      assertEquals(response.headers.get('x-input-rows'), '1');
+      assertEquals(response.headers.get('x-matched-rows'), '1');
+      assertEquals(response.headers.get('x-processed-rows'), '1');
+      bytes = new Uint8Array(await response.arrayBuffer());
+    } else {
+      const body = await response.json();
+      assertEquals(body.stats, { inputRows: 1, matchedRows: 1, outputRows: 1 });
+      assertEquals(body.rows[0][15], sampleInventory.internalCode);
+      bytes = Uint8Array.from(atob(body.workbookBase64), (value) => value.charCodeAt(0));
+    }
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(bytes as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    assertEquals(
+      workbook.getWorksheet('ピックアップ')?.getCell('P3').value,
+      sampleInventory.internalCode,
+    );
+    assertEquals(
+      workbook.getWorksheet('ピックアップ')?.getCell('Q3').value,
+      sampleInventory.storeCode,
+    );
+  });
+}
+
 Deno.test('pickup-list confirmation rejects a non-xlsx upload', async () => {
   const form = new FormData();
   form.set('file', new File(['not an Excel workbook'], 'errors.csv'));
@@ -341,14 +487,14 @@ Deno.test('Excel download reports an unregistered master key', async () => {
 });
 
 Deno.test('product data read failure returns a generic gateway error', async () => {
-  const failedSource: ShoeDataSource = {
+  const failedRepository: ShoeProductsRepository = {
     getDataset: () => {
-      throw new ShoeDataSourceError(
+      throw new ShoeProductsRepositoryError(
         '商品データを取得できませんでした。しばらくしてから再試行してください。',
       );
     },
   };
-  const response = await createApp(auth, failedSource).request('/api/shoes', {
+  const response = await createApp(auth, failedRepository).request('/api/shoes', {
     headers: { Cookie: await loginCookie() },
   });
   assertEquals(response.status, 502);

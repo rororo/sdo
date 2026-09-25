@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { parseCsv } from './csv.ts';
+import { parseCsv } from '../utils/csv.ts';
 
 export const STORE_INVENTORY_HEADERS = [
   'スキャンコード',
@@ -110,14 +110,6 @@ export interface SafeSizeErrorData {
   sheetName: string;
 }
 
-export interface PickupListResult {
-  bytes: Uint8Array;
-  records: PickupListRecord[];
-  inputRows: number;
-  matchedRows: number;
-  outputRows: number;
-}
-
 export class PickupListValidationError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
@@ -219,9 +211,10 @@ function findSafeSizeHeader(workbook: ExcelJS.Workbook): {
   rowNumber: number;
 } | null {
   for (const sheet of workbook.worksheets) {
-    const lastCandidateRow = Math.min(Math.max(sheet.actualRowCount, 1), 100);
+    const headers = sheet.actualColumnCount === 1 ? ['EAN'] : SAFE_SIZE_HEADERS;
+    const lastCandidateRow = Math.min(sheet.rowCount, 100);
     for (let rowNumber = 1; rowNumber <= lastCandidateRow; rowNumber++) {
-      const matches = SAFE_SIZE_HEADERS.every((header, index) =>
+      const matches = headers.every((header, index) =>
         normalizedHeader(sheet.getCell(rowNumber, index + 1).value) === normalizedHeader(header)
       );
       if (matches) return { sheet, rowNumber };
@@ -246,17 +239,14 @@ export async function parseSafeSizeWorkbook(bytes: Uint8Array): Promise<SafeSize
   const header = findSafeSizeHeader(workbook);
   if (!header) {
     throw new PickupListValidationError(
-      'エラーリストのヘッダーが見つかりません。SafeSizeの14列を含むシートを選択してください。',
+      'エラーリストのヘッダーが見つかりません。A列が「EAN」の1列形式、またはSafeSizeの14列形式のExcelファイルを選択してください。',
     );
   }
 
   const eans = new Set<string>();
   let inputRows = 0;
-  for (
-    let rowNumber = header.rowNumber + 1;
-    rowNumber <= header.sheet.actualRowCount;
-    rowNumber++
-  ) {
+  const lastRow = header.sheet.rowCount;
+  for (let rowNumber = header.rowNumber + 1; rowNumber <= lastRow; rowNumber++) {
     const value = header.sheet.getCell(rowNumber, 1).value;
     if (textValue(value).trim() === '') continue;
     eans.add(normalizeEan(value, `「${header.sheet.name}」シートの${rowNumber}行目`));
@@ -268,19 +258,14 @@ export async function parseSafeSizeWorkbook(bytes: Uint8Array): Promise<SafeSize
   return { eans, inputRows, sheetName: header.sheet.name };
 }
 
-export function createPickupListRecords(
+export function step1JoinInventoryWithErrors(
   inventory: readonly StoreInventoryRecord[],
   errorEans: ReadonlySet<string>,
-): { records: PickupListRecord[]; matchedRows: number } {
+): PickupListRecord[] {
   const records: PickupListRecord[] = [];
-  const seenInternalCodes = new Set<string>();
-  let matchedRows = 0;
 
   for (const item of inventory) {
     if (!TARGET_STORE_CODES.has(item.storeCode) || !errorEans.has(item.ean)) continue;
-    matchedRows++;
-    if (seenInternalCodes.has(item.internalCode)) continue;
-    seenInternalCodes.add(item.internalCode);
     records.push({
       department: item.department,
       departmentName: item.departmentName,
@@ -295,7 +280,20 @@ export function createPickupListRecords(
       storeName: item.storeName,
     });
   }
-  return { records, matchedRows };
+  return records;
+}
+
+export function step2RemoveDuplicateProducts(
+  joinedRecords: readonly PickupListRecord[],
+): PickupListRecord[] {
+  const records: PickupListRecord[] = [];
+  const seenInternalCodes = new Set<string>();
+  for (const record of joinedRecords) {
+    if (seenInternalCodes.has(record.internalCode)) continue;
+    seenInternalCodes.add(record.internalCode);
+    records.push(record);
+  }
+  return records;
 }
 
 function recordValues(record: PickupListRecord): string[] {
@@ -333,8 +331,8 @@ async function loadPickupTemplate(templateBytes?: Uint8Array): Promise<ExcelJS.W
   let bytes = templateBytes;
   if (!bytes) {
     const candidates = [
-      new URL('./data/pickup_list_template.xlsx', import.meta.url),
-      new URL('../docs/pickup_list_output.xlsx', import.meta.url),
+      new URL('./data/pickup-list-template.xlsx', import.meta.url),
+      new URL('../data/pickup-list-template.xlsx', import.meta.url),
     ];
     for (const candidate of candidates) {
       try {
@@ -392,7 +390,7 @@ function restoreDuplicateFormatting(bytes: Uint8Array): Uint8Array {
   return zipSync(archive, { level: 6 });
 }
 
-export async function createPickupListWorkbook(
+export async function step3CreateSubmissionWorkbook(
   records: readonly PickupListRecord[],
   templateBytes?: Uint8Array,
 ): Promise<Uint8Array> {
@@ -434,24 +432,4 @@ export async function createPickupListWorkbook(
   return restoreDuplicateFormatting(
     Uint8Array.from(workbookOutput as unknown as Uint8Array),
   );
-}
-
-export async function createPickupList(
-  inventory: readonly StoreInventoryRecord[],
-  safeSizeWorkbook: Uint8Array,
-): Promise<PickupListResult> {
-  const errorData = await parseSafeSizeWorkbook(safeSizeWorkbook);
-  const { records, matchedRows } = createPickupListRecords(inventory, errorData.eans);
-  if (records.length === 0) {
-    throw new PickupListValidationError(
-      'エラーリストに一致する対象店舗の商品がありませんでした。',
-    );
-  }
-  return {
-    bytes: await createPickupListWorkbook(records),
-    records,
-    inputRows: errorData.inputRows,
-    matchedRows,
-    outputRows: records.length,
-  };
 }

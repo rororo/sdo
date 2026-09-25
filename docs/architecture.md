@@ -28,9 +28,12 @@ Browser -- GET /api/shoes ------> Hono API -- GetObject --> S3 product CSV
 ```
 
 画面はReactとVite、APIはHono、S3取得と変換はDeno/TypeScriptで構成し、1つのDockerコンテナで
-実行します。商品CSVの解析とExcel生成は`server/transformer.ts`、S3の対象期計算・取得・キャッシュは
-`server/shoe_data_source.ts`に集約しています。ピックアップリストの照合とExcel生成は
-`server/pickup_list.ts`、在庫取得とキャッシュは`server/store_inventory_data_source.ts`が担当します。
+実行します。`server/app.ts`を唯一の入口とし、認証・商品・ピックアップリスト・ヘルスチェックを
+機能単位のrouteへまとめます。商品CSVと在庫CSVのS3取得および1時間キャッシュは
+`server/repositories/`、2つの変換とExcel生成は`server/transforms/`が担当します。
+
+クライアントは`client/src/pages/`でログイン、商品一覧、ピックアップリストの状態と表示を分け、
+複数ページで使う画面枠だけを`client/src/components/`で共有します。
 
 ログイン前は認証画面だけを表示します。ユーザー名とPBKDF2-SHA256パスワードハッシュは Secrets
 ManagerからECSの環境変数へ注入し、パスワードの平文は保存しません。認証後は署名と

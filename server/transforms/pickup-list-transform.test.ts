@@ -2,17 +2,17 @@ import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert';
 import ExcelJS from 'exceljs';
 import { strFromU8, unzipSync } from 'fflate';
 import {
-  createPickupList,
-  createPickupListRecords,
-  createPickupListWorkbook,
   parseSafeSizeWorkbook,
   parseStoreInventoryCsv,
   PICKUP_LIST_HEADERS,
   PICKUP_SUBMISSION_HEADERS,
   PickupListValidationError,
   SAFE_SIZE_HEADERS,
+  step1JoinInventoryWithErrors,
+  step2RemoveDuplicateProducts,
+  step3CreateSubmissionWorkbook,
   STORE_INVENTORY_HEADERS,
-} from './pickup_list.ts';
+} from './pickup-list-transform.ts';
 
 const inventoryCsv = `${STORE_INVENTORY_HEADERS.join(',')}
 4900000000001,775,陸上シューズ,010,MODEL-A,ＡＳＩＣＳ,SHOE A,ＡＷ用陸上スパイク,ＡＷ走高飛スパイク,8507010,24.0,10309,店舗A
@@ -22,10 +22,13 @@ const inventoryCsv = `${STORE_INVENTORY_HEADERS.join(',')}
 4900000000002,411,Ｍゴルフシューズ,789,MODEL-B,ecco,SHOE B,スパイクレス,スポーツ型ＳＰレス,8939789,27.0,99999,対象外店舗
 `;
 
-async function safeSizeWorkbook(eans: readonly string[]): Promise<Uint8Array> {
+async function safeSizeWorkbook(
+  eans: readonly ExcelJS.CellValue[],
+  headers: readonly string[] = SAFE_SIZE_HEADERS,
+): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('errors');
-  sheet.addRow([...SAFE_SIZE_HEADERS]);
+  sheet.addRow([...headers]);
   eans.forEach((ean) => sheet.addRow([ean]));
   return Uint8Array.from(await workbook.xlsx.writeBuffer() as unknown as Uint8Array);
 }
@@ -45,13 +48,14 @@ function cellValue(cell: ExcelJS.Cell): unknown {
 Deno.test('pickup list follows inventory order and removes duplicate internal codes', () => {
   const inventory = parseStoreInventoryCsv(inventoryCsv);
   assertEquals(inventory.length, 4);
-  const result = createPickupListRecords(
+  const joined = step1JoinInventoryWithErrors(
     inventory,
     new Set(['4900000000001', '4900000000002']),
   );
-  assertEquals(result.matchedRows, 4);
-  assertEquals(result.records.length, 2);
-  assertEquals(result.records[0], {
+  const records = step2RemoveDuplicateProducts(joined);
+  assertEquals(joined.length, 4);
+  assertEquals(records.length, 2);
+  assertEquals(records[0], {
     department: '775',
     departmentName: '陸上シューズ',
     threeDigitCode: '010',
@@ -64,7 +68,7 @@ Deno.test('pickup list follows inventory order and removes duplicate internal co
     storeCode: '10309',
     storeName: '店舗A',
   });
-  assertEquals(result.records[1]?.storeCode, '10319');
+  assertEquals(records[1]?.storeCode, '10319');
 });
 
 Deno.test('SafeSize workbook parser finds its 14-column header', async () => {
@@ -75,18 +79,61 @@ Deno.test('SafeSize workbook parser finds its 14-column header', async () => {
   assertEquals([...parsed.eans], ['4900000000001', '4900000000002']);
 });
 
+Deno.test('SafeSize workbook parser accepts an EAN-only scan list', async () => {
+  const bytes = await safeSizeWorkbook(['0196222995795', 196222995795, 4068818003251], ['EAN']);
+  const parsed = await parseSafeSizeWorkbook(bytes);
+  assertEquals(parsed.sheetName, 'errors');
+  assertEquals(parsed.inputRows, 3);
+  assertEquals([...parsed.eans], ['0196222995795', '4068818003251']);
+});
+
+for (const headers of [SAFE_SIZE_HEADERS, [' \u200Bean\u3000']]) {
+  Deno.test(`SafeSize parser reads sparse rows with ${headers.length} header columns`, async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet('notes').addRow(['メモ']);
+    const sheet = workbook.addWorksheet('scanlist');
+    sheet.getRow(100).values = [...headers];
+    sheet.getCell('A101').value = '4900000000001';
+    sheet.getCell('A104').value = '4900000000002';
+    sheet.getCell('B104').numFmt = '@';
+    const bytes = Uint8Array.from(await workbook.xlsx.writeBuffer() as unknown as Uint8Array);
+    const parsed = await parseSafeSizeWorkbook(bytes);
+    assertEquals(parsed.sheetName, 'scanlist');
+    assertEquals(parsed.inputRows, 2);
+    assertEquals([...parsed.eans], ['4900000000001', '4900000000002']);
+  });
+}
+
+Deno.test('EAN-only scan lists reject invalid or missing EAN data', async () => {
+  const invalid = await safeSizeWorkbook(['not-an-ean'], ['EAN']);
+  await assertRejects(
+    () => parseSafeSizeWorkbook(invalid),
+    PickupListValidationError,
+    '「errors」シートの2行目のEANは数字のみで入力してください。',
+  );
+  const empty = await safeSizeWorkbook([], ['EAN']);
+  await assertRejects(
+    () => parseSafeSizeWorkbook(empty),
+    PickupListValidationError,
+    'エラーリストにEANのデータ行がありません。',
+  );
+});
+
 Deno.test('pickup workbook fills the approved submission layout', async () => {
-  const result = await createPickupList(
-    parseStoreInventoryCsv(inventoryCsv),
+  const inventory = parseStoreInventoryCsv(inventoryCsv);
+  const errorData = await parseSafeSizeWorkbook(
     await safeSizeWorkbook(['4900000000001', '4900000000002']),
   );
-  assertEquals(result.inputRows, 2);
-  assertEquals(result.matchedRows, 4);
-  assertEquals(result.outputRows, 2);
+  const joined = step1JoinInventoryWithErrors(inventory, errorData.eans);
+  const records = step2RemoveDuplicateProducts(joined);
+  const bytes = await step3CreateSubmissionWorkbook(records);
+  assertEquals(errorData.inputRows, 2);
+  assertEquals(joined.length, 4);
+  assertEquals(records.length, 2);
 
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(
-    result.bytes as unknown as Parameters<typeof workbook.xlsx.load>[0],
+    bytes as unknown as Parameters<typeof workbook.xlsx.load>[0],
   );
   assertEquals(workbook.worksheets.map((sheet) => sheet.name), ['集計表', 'ピックアップ']);
   const sheet = workbook.getWorksheet('ピックアップ');
@@ -126,7 +173,7 @@ Deno.test('pickup workbook fills the approved submission layout', async () => {
 
 Deno.test('pickup workbook preserves the complete submission template format', async () => {
   const templateBytes = await Deno.readFile(
-    new URL('../docs/pickup_list_output.xlsx', import.meta.url),
+    new URL('../data/pickup-list-template.xlsx', import.meta.url),
   );
   const template = new ExcelJS.Workbook();
   await template.xlsx.load(
@@ -153,7 +200,7 @@ Deno.test('pickup workbook preserves the complete submission template format', a
   });
   const generated = new ExcelJS.Workbook();
   await generated.xlsx.load(
-    await createPickupListWorkbook(records, templateBytes) as unknown as Parameters<
+    await step3CreateSubmissionWorkbook(records, templateBytes) as unknown as Parameters<
       typeof generated.xlsx.load
     >[0],
   );
@@ -191,7 +238,7 @@ Deno.test('pickup workbook preserves the complete submission template format', a
 });
 
 Deno.test('pickup workbook preserves a valid duplicate-value formatting rule', async () => {
-  const bytes = await createPickupListWorkbook([{
+  const bytes = await step3CreateSubmissionWorkbook([{
     department: '302',
     departmentName: 'Ｍスキーブーツ',
     threeDigitCode: '012',

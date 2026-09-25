@@ -28,12 +28,14 @@
   },
   "tasks": {
     "dev": "deno run -A scripts/dev.ts",
-    "dev:client": "deno run -A npm:vite --config client/vite.config.ts",
-    "dev:server": "deno run -A --env-file=.env --watch server/dev.ts",
-    "check": "deno fmt --check && deno lint && deno check client/src/main.tsx server/main.ts server/docker.ts",
-    "test": "deno test -A",
+    "dev:client": "deno run -A npm:vite --config client/vite-config.ts",
+    "dev:server": "deno run -A --env-file=.env --watch server/app.ts",
+    "check": "deno fmt --check && deno lint && deno check client/src/main.tsx server/app.ts",
+    "test:unit": "deno test -A --ignore=integration",
+    "test:integration": "deno test -A integration/",
+    "test": "deno task test:unit && deno task test:integration",
     "build": "deno run -A scripts/build.ts",
-    "start": "deno run --env-file=.env --allow-net --allow-read=dist/client,dist/data --allow-env --allow-sys=osRelease dist/docker.js"
+    "start": "deno run --env-file=.env --allow-net --allow-read=dist/client,dist/data,$HOME/.aws --allow-env --allow-sys=osRelease dist/app.js"
   },
   "fmt": {
     "lineWidth": 100,

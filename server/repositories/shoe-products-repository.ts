@@ -4,14 +4,14 @@ import {
   type ShoeProductRecord,
   validateShoeProducts,
   WorkbookValidationError,
-} from './transformer.ts';
+} from '../transforms/shoes-master-transform.ts';
 
 const DEFAULT_BUCKET = 'scanalytics-report';
 const DEFAULT_REGION = 'ap-northeast-1';
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_CSV_BYTES = 50 * 1024 * 1024;
 
-export interface ShoeDataset {
+export interface ShoeProductsDataset {
   records: readonly ShoeProductRecord[];
   bucket: string;
   key: string;
@@ -20,8 +20,8 @@ export interface ShoeDataset {
   loadedAt: string;
 }
 
-export interface ShoeDataSource {
-  getDataset(): Promise<ShoeDataset>;
+export interface ShoeProductsRepository {
+  getDataset(): Promise<ShoeProductsDataset>;
 }
 
 interface S3Reader {
@@ -33,10 +33,10 @@ interface S3Reader {
   }>;
 }
 
-export class ShoeDataSourceError extends Error {
+export class ShoeProductsRepositoryError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
-    this.name = 'ShoeDataSourceError';
+    this.name = 'ShoeProductsRepositoryError';
   }
 }
 
@@ -49,7 +49,7 @@ function jstYearMonth(now: Date): { year: number; month: number } {
   const year = Number(parts.find((part) => part.type === 'year')?.value);
   const month = Number(parts.find((part) => part.type === 'month')?.value);
   if (!Number.isInteger(year) || !Number.isInteger(month)) {
-    throw new ShoeDataSourceError('JSTの対象期間を計算できませんでした。');
+    throw new ShoeProductsRepositoryError('JSTの対象期間を計算できませんでした。');
   }
   return { year, month };
 }
@@ -75,8 +75,8 @@ export function currentShoeProductKey(now = new Date()): string {
   return `sdo/shoe_products/kiukkn=${first}_${second}/shoe_products.csv`;
 }
 
-export class S3ShoeDataSource implements ShoeDataSource {
-  #cached: ShoeDataset | null = null;
+export class S3ShoeProductsRepository implements ShoeProductsRepository {
+  #cached: ShoeProductsDataset | null = null;
 
   constructor(
     private readonly client: S3Reader,
@@ -86,7 +86,7 @@ export class S3ShoeDataSource implements ShoeDataSource {
     private readonly cacheTtlMs = CACHE_TTL_MS,
   ) {}
 
-  async getDataset(): Promise<ShoeDataset> {
+  async getDataset(): Promise<ShoeProductsDataset> {
     const now = this.now();
     const key = this.keyOverride || currentShoeProductKey(now);
     if (
@@ -102,11 +102,11 @@ export class S3ShoeDataSource implements ShoeDataSource {
       );
       if (!object.Body) throw new Error('S3 object body is empty.');
       if (object.ContentLength !== undefined && object.ContentLength > MAX_CSV_BYTES) {
-        throw new ShoeDataSourceError('商品CSVが50MBを超えています。');
+        throw new ShoeProductsRepositoryError('商品CSVが50MBを超えています。');
       }
       const records = parseShoeProductCsv(await object.Body.transformToString('utf-8'));
       validateShoeProducts(records);
-      const dataset: ShoeDataset = Object.freeze({
+      const dataset: ShoeProductsDataset = Object.freeze({
         records: Object.freeze(records),
         bucket: this.bucket,
         key,
@@ -117,10 +117,13 @@ export class S3ShoeDataSource implements ShoeDataSource {
       this.#cached = dataset;
       return dataset;
     } catch (error) {
-      if (error instanceof ShoeDataSourceError || error instanceof WorkbookValidationError) {
+      if (
+        error instanceof ShoeProductsRepositoryError ||
+        error instanceof WorkbookValidationError
+      ) {
         throw error;
       }
-      throw new ShoeDataSourceError(
+      throw new ShoeProductsRepositoryError(
         '商品データを取得できませんでした。しばらくしてから再試行してください。',
         { cause: error },
       );
@@ -128,9 +131,9 @@ export class S3ShoeDataSource implements ShoeDataSource {
   }
 }
 
-export function createShoeDataSource(): ShoeDataSource {
+export function createShoeProductsRepository(): ShoeProductsRepository {
   const region = Deno.env.get('AWS_REGION')?.trim() || DEFAULT_REGION;
   const bucket = Deno.env.get('SHOE_DATA_BUCKET')?.trim() || DEFAULT_BUCKET;
   const key = Deno.env.get('SHOE_DATA_KEY')?.trim() || undefined;
-  return new S3ShoeDataSource(new S3Client({ region }), bucket, key);
+  return new S3ShoeProductsRepository(new S3Client({ region }), bucket, key);
 }

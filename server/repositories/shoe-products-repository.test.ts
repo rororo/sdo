@@ -1,6 +1,6 @@
 import { assertEquals } from '@std/assert';
-import { currentShoeProductKey, S3ShoeDataSource } from './shoe_data_source.ts';
-import { SOURCE_HEADERS } from './transformer.ts';
+import { SOURCE_HEADERS } from '../transforms/shoes-master-transform.ts';
+import { currentShoeProductKey, S3ShoeProductsRepository } from './shoe-products-repository.ts';
 
 const productCsv = `${
   SOURCE_HEADERS.join(',')
@@ -29,7 +29,7 @@ Deno.test('current product key follows the JST accounting-period boundaries', ()
   );
 });
 
-Deno.test('S3 data source caches CSV for one hour', async () => {
+Deno.test('S3 shoe products repository caches CSV for one hour', async () => {
   let requests = 0;
   let now = new Date('2026-08-13T06:20:00Z');
   const client = {
@@ -43,17 +43,17 @@ Deno.test('S3 data source caches CSV for one hour', async () => {
       });
     },
   };
-  const dataSource = new S3ShoeDataSource(
+  const repository = new S3ShoeProductsRepository(
     client,
     'test-bucket',
     'test/products.csv',
     () => now,
   );
 
-  const first = await dataSource.getDataset();
-  const cached = await dataSource.getDataset();
+  const first = await repository.getDataset();
+  const cached = await repository.getDataset();
   now = new Date('2026-08-13T07:20:00.001Z');
-  const refreshed = await dataSource.getDataset();
+  const refreshed = await repository.getDataset();
   assertEquals(first.records.length, 1);
   assertEquals(first.etag, 'etag-value');
   assertEquals(first.lastModified, '2026-08-13T06:15:00.000Z');

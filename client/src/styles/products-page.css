@@ -1,0 +1,226 @@
+.products-page {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.products-page table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.products-page th,
+.products-page td {
+  height: 38px;
+  padding: 0 10px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--soft-line);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.products-page th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  height: 36px;
+  border-bottom-color: var(--line);
+  color: #52525b;
+  background: #fafafa;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+}
+
+.products-page tbody tr:nth-child(even) {
+  background: #fcfcfc;
+}
+
+.products-page tbody tr {
+  outline: none;
+}
+
+.products-page tbody tr:hover,
+.products-page tbody tr:focus {
+  background: #fafafa;
+}
+
+.products-page tbody tr:focus-visible {
+  outline-offset: -2px;
+  background: #f1f5fb;
+}
+
+.product-table th:nth-child(1),
+.product-table th:nth-child(3),
+.product-table th:nth-child(5),
+.product-table th:nth-child(13),
+.product-table td:nth-child(1),
+.product-table td:nth-child(3),
+.product-table td:nth-child(5),
+.product-table td:nth-child(13) {
+  text-align: center;
+}
+
+.product-table th:nth-child(12),
+.product-table td:nth-child(12) {
+  text-align: right;
+}
+
+.paging-progress {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  overflow: hidden;
+  background: #e2e6ec;
+}
+
+.paging-progress span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--primary);
+  animation: progress-slide .9s ease-in-out infinite alternate;
+}
+
+@keyframes progress-slide {
+  to {
+    transform: translateX(150%);
+  }
+}
+
+.loading-table {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.skeleton-heading {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  color: #52525b;
+  background: #fafafa;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+}
+
+.skeleton-row {
+  display: flex;
+  height: 38px;
+  align-items: center;
+  gap: 18px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.skeleton-row span {
+  display: block;
+  height: 9px;
+  flex: none;
+  border-radius: 3px;
+  background: var(--soft-line);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+.pagination {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.page-number-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pagination button {
+  display: inline-flex;
+  min-width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #3f3f46;
+  background: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: border-color .12s, background .12s;
+}
+
+.pagination button:hover:not(:disabled):not(.current) {
+  border-color: #d4d4d8;
+  background: #f4f4f5;
+}
+
+.pagination button.current {
+  border-color: var(--primary);
+  color: #fff;
+  background: var(--primary);
+  font-weight: 600;
+  cursor: default;
+}
+
+.pagination button:disabled:not(.current) {
+  border-color: var(--soft-line);
+  color: #c4c4c8;
+  background: #fff;
+}
+
+.pagination-gap {
+  display: inline-flex;
+  min-width: 20px;
+  height: 28px;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 2px 5px;
+  color: #a1a1aa;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .products-page .sheet-footer {
+    min-height: 0;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .products-page .sheet-meta {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .pagination {
+    max-width: 100%;
+    justify-content: flex-end;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .pager-label {
+    display: none;
+  }
+
+  .pagination button {
+    padding-inline: 7px;
+  }
+}

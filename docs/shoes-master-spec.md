@@ -2,7 +2,7 @@
 
 ## 1. 参照ブックの分析結果
 
-参照元は `docs/shoes_master.xlsx`。対象範囲と役割は次のとおり。
+参照元は `integration/shoes-master.xlsx`。対象範囲と役割は次のとおり。
 
 | シート                               | 範囲         | 役割                                                |
 | ------------------------------------ | ------------ | --------------------------------------------------- |
@@ -44,7 +44,7 @@
 ## 3. 変換規則
 
 固定マスタの参照キーは、入力行の `部門 + 品種 + 品目` を文字列連結して作る。参照表は
-`server/data/department_item_master.csv` で管理し、S3の商品CSV側の参照表や数式には依存しない。
+`server/data/department-item-master.csv` で管理し、S3の商品CSV側の参照表や数式には依存しない。
 
 CSVは
 `key,department,department_name,category,category_name,item,item_name,gender,age_group,sport_category,spike`

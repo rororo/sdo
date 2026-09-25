@@ -3,7 +3,7 @@ import {
   parseStoreInventoryCsv,
   PickupListValidationError,
   type StoreInventoryRecord,
-} from './pickup_list.ts';
+} from '../transforms/pickup-list-transform.ts';
 
 const DEFAULT_BUCKET = 'scanalytics-report';
 const DEFAULT_REGION = 'ap-northeast-1';
@@ -20,7 +20,7 @@ export interface StoreInventoryDataset {
   loadedAt: string;
 }
 
-export interface StoreInventoryDataSource {
+export interface StoreInventoryRepository {
   getDataset(): Promise<StoreInventoryDataset>;
 }
 
@@ -33,14 +33,14 @@ interface S3Reader {
   }>;
 }
 
-export class StoreInventoryDataSourceError extends Error {
+export class StoreInventoryRepositoryError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
-    this.name = 'StoreInventoryDataSourceError';
+    this.name = 'StoreInventoryRepositoryError';
   }
 }
 
-export class S3StoreInventoryDataSource implements StoreInventoryDataSource {
+export class S3StoreInventoryRepository implements StoreInventoryRepository {
   #cached: StoreInventoryDataset | null = null;
 
   constructor(
@@ -66,7 +66,7 @@ export class S3StoreInventoryDataSource implements StoreInventoryDataSource {
       );
       if (!object.Body) throw new Error('S3 object body is empty.');
       if (object.ContentLength !== undefined && object.ContentLength > MAX_CSV_BYTES) {
-        throw new StoreInventoryDataSourceError('店舗在庫CSVが50MBを超えています。');
+        throw new StoreInventoryRepositoryError('店舗在庫CSVが50MBを超えています。');
       }
       const records = parseStoreInventoryCsv(await object.Body.transformToString('utf-8'));
       const dataset: StoreInventoryDataset = Object.freeze({
@@ -81,12 +81,12 @@ export class S3StoreInventoryDataSource implements StoreInventoryDataSource {
       return dataset;
     } catch (error) {
       if (
-        error instanceof StoreInventoryDataSourceError ||
+        error instanceof StoreInventoryRepositoryError ||
         error instanceof PickupListValidationError
       ) {
         throw error;
       }
-      throw new StoreInventoryDataSourceError(
+      throw new StoreInventoryRepositoryError(
         '店舗在庫データを取得できませんでした。しばらくしてから再試行してください。',
         { cause: error },
       );
@@ -94,9 +94,9 @@ export class S3StoreInventoryDataSource implements StoreInventoryDataSource {
   }
 }
 
-export function createStoreInventoryDataSource(): StoreInventoryDataSource {
+export function createStoreInventoryRepository(): StoreInventoryRepository {
   const region = Deno.env.get('AWS_REGION')?.trim() || DEFAULT_REGION;
   const bucket = Deno.env.get('SHOE_DATA_BUCKET')?.trim() || DEFAULT_BUCKET;
   const key = Deno.env.get('SHOE_INVENTORY_KEY')?.trim() || DEFAULT_KEY;
-  return new S3StoreInventoryDataSource(new S3Client({ region }), bucket, key);
+  return new S3StoreInventoryRepository(new S3Client({ region }), bucket, key);
 }

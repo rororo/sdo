@@ -1,5 +1,5 @@
 import { assert, assertEquals } from '@std/assert';
-import { createPasswordHash, credentialsMatch } from './auth.ts';
+import { createPasswordHash, credentialsMatch } from './auth-session.ts';
 
 Deno.test('password hashes validate the matching credential only', async () => {
   const passwordHash = await createPasswordHash('correct-horse-battery-staple', {

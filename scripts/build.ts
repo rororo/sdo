@@ -6,32 +6,31 @@ async function run(command: string, args: string[]) {
   if (!result.success) throw new Error(`${command} exited with code ${result.code}`);
 }
 
-await run('deno', ['run', '-A', 'npm:vite', 'build', '--config', 'client/vite.config.ts']);
-for (
-  const [entry, output] of [
-    ['server/main.ts', 'dist/server.js'],
-    ['server/docker.ts', 'dist/docker.js'],
-  ]
-) {
-  await build({
-    entryPoints: [entry],
-    outfile: output,
-    bundle: true,
-    platform: 'node',
-    format: 'esm',
-    banner: {
-      js:
-        "import { createRequire as createNodeRequire } from 'node:module'; const require = createNodeRequire(import.meta.url);",
-    },
-  });
+try {
+  await Deno.remove('dist', { recursive: true });
+} catch (error) {
+  if (!(error instanceof Deno.errors.NotFound)) throw error;
 }
+
+await run('deno', ['run', '-A', 'npm:vite', 'build', '--config', 'client/vite-config.ts']);
+await build({
+  entryPoints: ['server/app.ts'],
+  outfile: 'dist/app.js',
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  banner: {
+    js:
+      "import { createRequire as createNodeRequire } from 'node:module'; const require = createNodeRequire(import.meta.url);",
+  },
+});
 
 await Deno.mkdir('dist/data', { recursive: true });
 await Deno.copyFile(
-  'server/data/department_item_master.csv',
-  'dist/data/department_item_master.csv',
+  'server/data/department-item-master.csv',
+  'dist/data/department-item-master.csv',
 );
 await Deno.copyFile(
-  'docs/pickup_list_output.xlsx',
-  'dist/data/pickup_list_template.xlsx',
+  'server/data/pickup-list-template.xlsx',
+  'dist/data/pickup-list-template.xlsx',
 );
