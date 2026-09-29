@@ -2,6 +2,7 @@ import { assertEquals, assertStringIncludes } from '@std/assert';
 import ExcelJS from 'exceljs';
 import { createApp, createRequestHandler } from './app.ts';
 import {
+  S3ShoeProductsRepository,
   type ShoeProductsDataset,
   type ShoeProductsRepository,
   ShoeProductsRepositoryError,
@@ -41,6 +42,8 @@ const sampleProduct: ShoeProductRecord = {
   commercialName: 'BFC 110 BOA',
   size: '25.5',
   sizeSystem: 'JP',
+  ecId: '00012345678901234567',
+  ecUrl: 'https://www.supersports.com/ja-jp/xebio/products/00012345678901234567',
 };
 
 const sampleInventory: StoreInventoryRecord = {
@@ -160,6 +163,8 @@ Deno.test('application APIs reject unauthenticated requests', async () => {
   assertEquals((await app.request('/api/auth/session')).status, 401);
   assertEquals((await app.request('/api/shoes')).status, 401);
   assertEquals((await app.request('/api/shoes.xlsx')).status, 401);
+  assertEquals((await app.request('/api/kyoka-pickup-list', { method: 'POST' })).status, 401);
+  assertEquals((await app.request('/api/kyoka-pickup-list.xlsx', { method: 'POST' })).status, 401);
   assertEquals((await app.request('/api/pickup-list.xlsx', { method: 'POST' })).status, 401);
   assertEquals((await app.request('/api/pickup-list', { method: 'POST' })).status, 401);
 });
@@ -281,6 +286,8 @@ Deno.test('authenticated shoes endpoint returns paginated product data', async (
   assertEquals(body.page, 2);
   assertEquals(body.pageCount, 2);
   assertEquals(body.records.length, 5);
+  assertEquals(body.records[0].ecId, sampleProduct.ecId);
+  assertEquals(body.records[0].ecUrl, sampleProduct.ecUrl);
   assertEquals(body.records[0].internalCode, String(8_692_462 + 50));
   assertEquals(body.metadata, {
     lastModified: dataset().lastModified,
@@ -315,6 +322,8 @@ Deno.test('authenticated Excel download returns converted master data', async ()
     Array.from({ length: OUTPUT_HEADERS.length }, (_, index) => sheet.getCell(4, index + 1).value),
     [...OUTPUT_HEADERS],
   );
+  assertEquals(sheet.getCell('V5').value, sampleProduct.ecId);
+  assertEquals(sheet.getCell('W5').value, sampleProduct.ecUrl);
   assertEquals(Array.from({ length: 13 }, (_, index) => sheet.getCell(5, index + 1).value), [
     'K2',
     '0196222995795',
@@ -330,6 +339,48 @@ Deno.test('authenticated Excel download returns converted master data', async ()
     '8692462',
     null,
   ]);
+});
+
+Deno.test('new SQL CSV flows through S3, authenticated API, and Excel with nullable EC data', async () => {
+  // Keep the extractor's header literal so a parser/header change cannot mask incompatibility.
+  const csv =
+    '\uFEFF部門,部門名,品種,品種名,品目,品目名,自社品番,ブランド,スキャンコード(JAN),メーカー品番,商品名(EN),Size,SizeSys,EC-ID,EC-URL\r\n' +
+    '302,Ｍスキーブーツ,1,レギュラーブーツ,2,フリーライドブーツ,8692462,K2,0196222995795,KS240068 BFC 110 BOA,BFC 110 BOA,25.5,JP,00012345678901234567,https://www.supersports.com/ja-jp/xebio/products/00012345678901234567\r\n' +
+    '302,Ｍスキーブーツ,1,レギュラーブーツ,2,フリーライドブーツ,8692463,K2,0196222995796,KS240068 BFC 110 BOA,BFC 110 BOA,26,,,\r\n';
+  const repository = new S3ShoeProductsRepository({
+    send: () =>
+      Promise.resolve({
+        Body: { transformToString: () => Promise.resolve(csv) },
+      }),
+  });
+  const app = createApp(auth, repository);
+  const headers = { Cookie: await loginCookie() };
+  const listing = await app.request('/api/shoes', { headers });
+  assertEquals(listing.status, 200);
+  const body = await listing.json();
+  assertEquals(body.total, 2);
+  assertEquals(body.records[0].ecId, sampleProduct.ecId);
+  assertEquals(body.records[0].ecUrl, sampleProduct.ecUrl);
+  assertEquals(body.records[1].ecId, '');
+  assertEquals(body.records[1].ecUrl, '');
+
+  const download = await app.request('/api/shoes.xlsx', { headers });
+  assertEquals(download.status, 200);
+  assertEquals(download.headers.get('x-processed-rows'), '2');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(
+    new Uint8Array(await download.arrayBuffer()) as unknown as Parameters<
+      typeof workbook.xlsx.load
+    >[0],
+  );
+  const sheet = workbook.getWorksheet('Master Data2026FW②')!;
+  assertEquals(sheet.getCell('V4').value, 'EC-ID');
+  assertEquals(sheet.getCell('W4').value, 'EC-URL');
+  assertEquals(sheet.getCell('V5').value, sampleProduct.ecId);
+  assertEquals(sheet.getCell('W5').value, sampleProduct.ecUrl);
+  assertEquals(sheet.getCell('V6').text, '');
+  assertEquals(sheet.getCell('W6').text, '');
+  assertEquals(sheet.autoFilter, 'A4:W6');
 });
 
 Deno.test('authenticated pickup-list upload returns the submission workbook', async () => {
@@ -415,15 +466,30 @@ Deno.test('authenticated pickup-list confirmation returns its preview and workbo
   assertEquals(workbook.getWorksheet('ピックアップ')?.getCell('P3').value, '8692462');
 });
 
-for (const endpoint of ['/api/pickup-list', '/api/pickup-list.xlsx']) {
-  Deno.test(`${endpoint} accepts an EAN-only scan list`, async () => {
+for (
+  const endpoint of [
+    '/api/pickup-list',
+    '/api/pickup-list.xlsx',
+    '/api/kyoka-pickup-list',
+    '/api/kyoka-pickup-list.xlsx',
+  ]
+) {
+  Deno.test(`${endpoint} accepts a single-column scan list with an arbitrary header`, async () => {
     const form = new FormData();
-    form.set('file', await errorListFile([sampleInventory.ean], ['EAN']));
-    const response = await createApp(auth, source(), inventorySource()).request(endpoint, {
-      method: 'POST',
-      headers: { Cookie: await loginCookie() },
-      body: form,
-    });
+    form.set(
+      'file',
+      await errorListFile([
+        endpoint.includes('kyoka') ? sampleInventory.internalCode : sampleInventory.ean,
+      ], ['スキャンした商品コード']),
+    );
+    const response = await createApp(auth, source(), inventorySource()).request(
+      endpoint,
+      {
+        method: 'POST',
+        headers: { Cookie: await loginCookie() },
+        body: form,
+      },
+    );
     assertEquals(response.status, 200);
 
     let bytes: Uint8Array;
@@ -501,4 +567,24 @@ Deno.test('product data read failure returns a generic gateway error', async () 
   assertEquals(await response.json(), {
     error: '商品データを取得できませんでした。しばらくしてから再試行してください。',
   });
+});
+
+Deno.test('authenticated kyoka upload matches internal codes without reading product data', async () => {
+  const products: ShoeProductsRepository = {
+    getDataset: () => {
+      throw new Error('Product data must not be read');
+    },
+  };
+  const app = createApp(auth, products, inventorySource());
+  const form = new FormData();
+  form.set('file', await errorListFile([sampleInventory.internalCode], ['自社品番']));
+  const response = await app.request('/api/kyoka-pickup-list', {
+    method: 'POST',
+    headers: { Cookie: await loginCookie() },
+    body: form,
+  });
+  assertEquals(response.status, 200);
+  const result = await response.json();
+  assertEquals(result.stats, { inputRows: 1, matchedRows: 1, outputRows: 1 });
+  assertEquals(result.rows[0][15], sampleInventory.internalCode);
 });

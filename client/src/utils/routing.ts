@@ -1,8 +1,9 @@
-export type View = 'products' | 'pickup';
+export type View = 'products' | 'pickup' | 'kyoka';
 
 export const VIEW_PATHS: Record<View, string> = {
   products: '/products',
   pickup: '/pickup-list',
+  kyoka: '/kyoka-pickup-list',
 };
 
 export function viewFromPathname(pathname: string): View | null {
@@ -10,5 +11,6 @@ export function viewFromPathname(pathname: string): View | null {
 
   if (normalized === VIEW_PATHS.products) return 'products';
   if (normalized === VIEW_PATHS.pickup) return 'pickup';
+  if (normalized === VIEW_PATHS.kyoka) return 'kyoka';
   return null;
 }

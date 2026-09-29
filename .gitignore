@@ -1,6 +1,7 @@
 .deno/
 node_modules/
 dist/
+e2e/artifacts/
 client/.vite/
 .env
 .login-credentials

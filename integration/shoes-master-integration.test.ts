@@ -1,8 +1,8 @@
 import { assertEquals } from '@std/assert';
 import {
+  LEGACY_SOURCE_HEADERS,
   OUTPUT_HEADERS,
   parseShoeProductCsv,
-  SOURCE_HEADERS,
   step1ConvertSourceRows,
   step2CreateMasterWorkbook,
 } from '../server/transforms/shoes-master-transform.ts';
@@ -34,7 +34,7 @@ Deno.test('shoe master transform matches every row in the real workbook', async 
     source,
     SOURCE_FIRST_ROW,
     SOURCE_LAST_ROW,
-    SOURCE_HEADERS.length,
+    LEGACY_SOURCE_HEADERS.length,
   );
 
   const rows = step1ConvertSourceRows(parseShoeProductCsv(sourceCsv));

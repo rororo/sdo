@@ -4,7 +4,7 @@ import { currentShoeProductKey, S3ShoeProductsRepository } from './shoe-products
 
 const productCsv = `${
   SOURCE_HEADERS.join(',')
-}\n302,Ｍスキーブーツ,1,レギュラーブーツ,2,フリーライドブーツ,8692462,K2,0196222995795,KS240068 BFC 110 BOA,BFC 110 BOA,25.5,JP\n`;
+}\n302,Ｍスキーブーツ,1,レギュラーブーツ,2,フリーライドブーツ,8692462,K2,0196222995795,KS240068 BFC 110 BOA,BFC 110 BOA,25.5,JP,000123,https://www.supersports.com/ja-jp/xebio/products/000123\n`;
 
 Deno.test('current product key follows the JST accounting-period boundaries', () => {
   assertEquals(
@@ -55,6 +55,8 @@ Deno.test('S3 shoe products repository caches CSV for one hour', async () => {
   now = new Date('2026-08-13T07:20:00.001Z');
   const refreshed = await repository.getDataset();
   assertEquals(first.records.length, 1);
+  assertEquals(first.records[0]?.ecId, '000123');
+  assertEquals(first.records[0]?.ecUrl, 'https://www.supersports.com/ja-jp/xebio/products/000123');
   assertEquals(first.etag, 'etag-value');
   assertEquals(first.lastModified, '2026-08-13T06:15:00.000Z');
   assertEquals(cached, first);

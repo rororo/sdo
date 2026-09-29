@@ -1,56 +1,23 @@
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { ToastMessage, ToolbarAction } from '../components/app-shell.tsx';
+import { type PickupConfirmation, PickupPreview } from '../components/pickup-preview.tsx';
 import { apiUrl } from '../utils/api.ts';
 import { downloadBase64Workbook } from '../utils/download-file.ts';
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
-const PICKUP_COLUMN_WIDTHS = [
-  54,
-  54,
-  54,
-  54,
-  54,
-  54,
-  54,
-  58,
-  112,
-  54,
-  126,
-  128,
-  210,
-  112,
-  126,
-  110,
-  58,
-  118,
-];
-
 type RequestStatus =
   | { kind: 'idle'; message: '' }
   | { kind: 'loading'; message: string }
   | { kind: 'success'; message: string }
   | { kind: 'error'; message: string };
 
-interface PickupStats {
-  inputRows: number;
-  matchedRows: number;
-  outputRows: number;
-}
-
-interface PickupConfirmation {
-  filename: string;
-  headers: string[];
-  rows: Array<Array<string | number>>;
-  stats: PickupStats;
-  workbookBase64: string;
-}
-
 export interface PendingFileDrop {
   id: number;
   files: File[];
 }
 
-interface PickupListPageProps {
+export interface PickupListPageProps {
+  mode?: 'standard' | 'kyoka';
   active: boolean;
   pendingDrop: PendingFileDrop | null;
   onUnauthorized: () => void;
@@ -73,12 +40,14 @@ function RefreshIcon() {
 }
 
 export function PickupListPage({
+  mode = 'standard',
   active,
   pendingDrop,
   onUnauthorized,
   onToolbarChange,
   showToast,
 }: PickupListPageProps) {
+  const titleId = `${mode}-pickup-file-title`;
   const [pickupFile, setPickupFile] = useState<File | null>(null);
   const [pickupStatus, setPickupStatus] = useState<RequestStatus>({
     kind: 'idle',
@@ -141,10 +110,13 @@ export function PickupListPage({
     try {
       const form = new FormData();
       form.set('file', pickupFile);
-      const response = await fetch(apiUrl('api/pickup-list'), {
-        method: 'POST',
-        body: form,
-      });
+      const response = await fetch(
+        apiUrl(mode === 'kyoka' ? 'api/kyoka-pickup-list' : 'api/pickup-list'),
+        {
+          method: 'POST',
+          body: form,
+        },
+      );
       if (response.status === 401) {
         onUnauthorized();
         throw new Error('セッションの有効期限が切れました。もう一度ログインしてください。');
@@ -171,7 +143,7 @@ export function PickupListPage({
       setPickupStatus({ kind: 'error', message });
       showToast(message, 'error');
     }
-  }, [onUnauthorized, pickupFile, pickupStatus.kind, showToast]);
+  }, [mode, onUnauthorized, pickupFile, pickupStatus.kind, showToast]);
 
   const downloadPickupExcel = useCallback(() => {
     if (!pickupConfirmation) return;
@@ -233,9 +205,19 @@ export function PickupListPage({
           </div>
         )
         : (
-          <section className='upload-panel' aria-labelledby='pickup-file-title'>
+          <section className='upload-panel' aria-labelledby={titleId}>
             <span className='xlsx-icon' aria-hidden='true'>XLS</span>
-            <h1 id='pickup-file-title'>Excelファイルをドロップ、または選択</h1>
+            <h1 id={titleId}>
+              {mode === 'kyoka'
+                ? '強化品番ピックアップ：自社品番リストをアップロード'
+                : 'Excelファイルをドロップ、または選択'}
+            </h1>
+            {mode === 'kyoka' && (
+              <p>
+                リストの自社品番を店舗10309・10319の在庫と照合します。複数列の場合は「自社品番」または「Retailer
+                internal code」を見出しにしてください。
+              </p>
+            )}
             <p>画面のどこへドロップしても受け付けます。.xlsx 形式、1ファイル、20MBまで。</p>
             <div className='upload-actions'>
               <label className={pickupFile ? 'secondary-file-button' : 'file-button'}>
@@ -291,43 +273,7 @@ export function PickupListPage({
                 <h2>出力フォーマット</h2>
                 <span>出力 {pickupConfirmation.rows.length.toLocaleString('ja-JP')} 件</span>
               </header>
-              <div className='table-scroll'>
-                <table className='pickup-preview-table'>
-                  <thead>
-                    <tr>
-                      {pickupConfirmation.headers.map((header, index) => (
-                        <th
-                          key={`${header}-${index}`}
-                          scope='col'
-                          style={{
-                            width: PICKUP_COLUMN_WIDTHS[index],
-                            minWidth: PICKUP_COLUMN_WIDTHS[index],
-                          }}
-                        >
-                          {header}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pickupConfirmation.rows.map((row, rowIndex) => (
-                      <tr key={`pickup-output-${rowIndex}`} tabIndex={0}>
-                        {row.map((value, columnIndex) => (
-                          <td
-                            key={`${rowIndex}-${columnIndex}`}
-                            title={String(value)}
-                            className={[6, 7, 9, 10, 15, 16].includes(columnIndex)
-                              ? 'mono-cell'
-                              : ''}
-                          >
-                            {value}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <PickupPreview result={pickupConfirmation} />
             </>
           )
           : pickupStatus.kind === 'error' && pickupFile

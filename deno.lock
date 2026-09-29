@@ -4,18 +4,19 @@
     "jsr:@std/assert@^1.0.18": "1.0.19",
     "jsr:@std/internal@^1.0.12": "1.0.14",
     "npm:@aws-sdk/client-s3@3.1109.0": "3.1109.0",
-    "npm:@base-ui/react@1.6.0": "1.6.0_@types+react@19.2.18_react@19.2.8_react-dom@19.2.8__react@19.2.8",
+    "npm:@base-ui/react@1.6.0": "1.6.0_@types+react@19.2.18_react@19.2.8_react-dom@19.2.8",
     "npm:@hono/zod-validator@~0.7.6": "0.7.6_hono@4.13.1_zod@4.4.3",
-    "npm:@tailwindcss/vite@^4.1.18": "4.3.3_vite@8.2.1__esbuild@0.27.3_esbuild@0.27.3",
+    "npm:@tailwindcss/vite@^4.1.18": "4.3.3_vite@8.2.1_esbuild@0.27.3",
     "npm:@types/react-dom@^19.2.3": "19.2.4_@types+react@19.2.18",
     "npm:@types/react@^19.2.14": "19.2.18",
-    "npm:@vitejs/plugin-react@^6.0.1": "6.0.5_vite@8.2.1__esbuild@0.27.3_esbuild@0.27.3",
+    "npm:@vitejs/plugin-react@^6.0.1": "6.0.5_vite@8.2.1_esbuild@0.27.3",
     "npm:archiver@5.3.2": "5.3.2",
     "npm:archiver@^5.3.2": "5.3.2",
     "npm:esbuild@0.27.3": "0.27.3",
     "npm:exceljs@^4.4.0": "4.4.0",
     "npm:fflate@~0.8.2": "0.8.3",
     "npm:hono@^4.11.4": "4.13.1",
+    "npm:playwright@1.62.1": "1.62.1",
     "npm:react-dom@^19.2.4": "19.2.8_react@19.2.8",
     "npm:react@^19.2.4": "19.2.8",
     "npm:tailwindcss@^4.1.18": "4.3.3",
@@ -238,7 +239,7 @@
     "@babel/runtime@7.29.7": {
       "integrity": "sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw=="
     },
-    "@base-ui/react@1.6.0_@types+react@19.2.18_react@19.2.8_react-dom@19.2.8__react@19.2.8": {
+    "@base-ui/react@1.6.0_@types+react@19.2.18_react@19.2.8_react-dom@19.2.8": {
       "integrity": "sha512-/jzjTWJYXhRFO45Bev9lc3cHbmjzCMpUqbMZ2AgKy/z25mY9B6shGSNcXcjQar9n5doM0KYW1W8fcFv2jZBuMw==",
       "dependencies": [
         "@babel/runtime",
@@ -254,7 +255,7 @@
         "@types/react"
       ]
     },
-    "@base-ui/utils@0.3.1_@types+react@19.2.18_react@19.2.8_react-dom@19.2.8__react@19.2.8": {
+    "@base-ui/utils@0.3.1_@types+react@19.2.18_react@19.2.8_react-dom@19.2.8": {
       "integrity": "sha512-gFFiltORVmW/N6IILTGxizP3PBpVpysqML1ALY5Vk0mH+7faVkCknOU31goYHN5Aoek2dkjxva1XOD2Ce9WuIg==",
       "dependencies": [
         "@babel/runtime",
@@ -435,7 +436,7 @@
         "@floating-ui/utils"
       ]
     },
-    "@floating-ui/react-dom@2.1.9_react@19.2.8_react-dom@19.2.8__react@19.2.8": {
+    "@floating-ui/react-dom@2.1.9_react@19.2.8_react-dom@19.2.8": {
       "integrity": "sha512-JDjEFGCpImxDCA7JJKviA0M9+RtmJdj0m/NVU5IMgBK+AmZouAQQ7/+2GLH0GXXY0YMw9oXPB8hKdbPYg5QLYg==",
       "dependencies": [
         "@floating-ui/dom",
@@ -689,7 +690,7 @@
         "@tailwindcss/oxide-win32-x64-msvc"
       ]
     },
-    "@tailwindcss/vite@4.3.3_vite@8.2.1__esbuild@0.27.3_esbuild@0.27.3": {
+    "@tailwindcss/vite@4.3.3_vite@8.2.1_esbuild@0.27.3": {
       "integrity": "sha512-yYU8cogLeSh/ms2jh8Fj7jaba/EWa7Ja6GoUqYZaraEuCI5YS6ms6ObZgjjedm+jm6XZjdNRWBpPP6Z86oOxcw==",
       "dependencies": [
         "@tailwindcss/node",
@@ -713,7 +714,7 @@
         "csstype"
       ]
     },
-    "@vitejs/plugin-react@6.0.5_vite@8.2.1__esbuild@0.27.3_esbuild@0.27.3": {
+    "@vitejs/plugin-react@6.0.5_vite@8.2.1_esbuild@0.27.3": {
       "integrity": "sha512-BOVzne/NL162sMdResB25mUv+vWMF5NoAjNf09TeGlE7ZpszZWSD3winycicLJw72yeVsoCn/2kOhEuCvEShMA==",
       "dependencies": [
         "@rolldown/pluginutils",
@@ -955,6 +956,11 @@
     },
     "fs.realpath@1.0.0": {
       "integrity": "sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw=="
+    },
+    "fsevents@2.3.2": {
+      "integrity": "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==",
+      "os": ["darwin"],
+      "scripts": true
     },
     "fsevents@2.3.3": {
       "integrity": "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
@@ -1278,6 +1284,20 @@
     "picomatch@4.0.5": {
       "integrity": "sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A=="
     },
+    "playwright-core@1.62.1": {
+      "integrity": "sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==",
+      "bin": true
+    },
+    "playwright@1.62.1": {
+      "integrity": "sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==",
+      "dependencies": [
+        "playwright-core"
+      ],
+      "optionalDependencies": [
+        "fsevents@2.3.2"
+      ],
+      "bin": true
+    },
     "postcss@8.5.26": {
       "integrity": "sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==",
       "dependencies": [
@@ -1456,7 +1476,7 @@
         "tinyglobby"
       ],
       "optionalDependencies": [
-        "fsevents"
+        "fsevents@2.3.3"
       ],
       "optionalPeers": [
         "esbuild"
@@ -1496,6 +1516,7 @@
       "npm:exceljs@^4.4.0",
       "npm:fflate@~0.8.2",
       "npm:hono@^4.11.4",
+      "npm:playwright@1.62.1",
       "npm:react-dom@^19.2.4",
       "npm:react@^19.2.4",
       "npm:tailwindcss@^4.1.18",

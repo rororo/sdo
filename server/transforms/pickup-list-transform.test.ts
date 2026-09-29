@@ -1,6 +1,7 @@
 import { assertEquals, assertRejects, assertStringIncludes } from '@std/assert';
 import ExcelJS from 'exceljs';
 import { strFromU8, unzipSync } from 'fflate';
+import { OUTPUT_HEADERS } from './shoes-master-transform.ts';
 import {
   parseSafeSizeWorkbook,
   parseStoreInventoryCsv,
@@ -87,7 +88,97 @@ Deno.test('SafeSize workbook parser accepts an EAN-only scan list', async () => 
   assertEquals([...parsed.eans], ['0196222995795', '4068818003251']);
 });
 
-for (const headers of [SAFE_SIZE_HEADERS, [' \u200Bean\u3000']]) {
+Deno.test('pickup parser reads EAN from column B in legacy, current and August master formats', async () => {
+  const legacy = OUTPUT_HEADERS.slice(0, 21);
+  for (
+    const headers of [
+      legacy,
+      OUTPUT_HEADERS,
+      [...legacy.slice(0, 12), 'EC ID', ...legacy.slice(12)],
+    ]
+  ) {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet('notes').addRow(['説明']);
+    const sheet = workbook.addWorksheet('Master Data');
+    sheet.getRow(4).values = [...headers];
+    sheet.getRow(5).values = ['BRAND-A', '0196222995795'];
+    sheet.getRow(8).values = ['BRAND-B', 4550674065110];
+    sheet.getCell('B100').numFmt = '@';
+    const bytes = Uint8Array.from(await workbook.xlsx.writeBuffer() as unknown as Uint8Array);
+    const parsed = await parseSafeSizeWorkbook(bytes);
+    assertEquals(parsed.sheetName, 'Master Data');
+    assertEquals(parsed.inputRows, 2);
+    assertEquals([...parsed.eans], ['0196222995795', '4550674065110']);
+  }
+});
+
+Deno.test('single-column scan lists accept arbitrary header names and preserve the first EAN', async () => {
+  for (const name of ['JAN', 'スキャン一覧', '商品コード 📋', '012345']) {
+    const bytes = await safeSizeWorkbook(['0196222995795', null, 4068818003251], [name]);
+    const parsed = await parseSafeSizeWorkbook(bytes);
+    assertEquals(parsed.inputRows, 2);
+    assertEquals([...parsed.eans], ['0196222995795', '4068818003251']);
+  }
+});
+
+Deno.test('pickup parser identifies EAN aliases independently of column order and extra columns', async () => {
+  for (
+    const name of [' Ean ', 'ＥＡＮ', 'JAN', 'janコード', 'スキャンコード', 'スキャンコード（JAN）']
+  ) {
+    for (const column of [1, 3, 6]) {
+      const workbook = new ExcelJS.Workbook();
+      workbook.addWorksheet('notes').addRow(['メモ']);
+      const sheet = workbook.addWorksheet('reordered');
+      sheet.getRow(4).values = ['自社品番', 'ブランド', 'EC-ID', '備考', 'サイズ', '商品名'];
+      sheet.getRow(5).values = ['9281551', 'BRAND', '12345', 'メモ', '25', 'SHOE'];
+      sheet.getCell(4, column).value = name;
+      sheet.getCell(5, column).value = '0196222995795';
+      sheet.getCell(8, column).value = 4550674065110;
+      const bytes = Uint8Array.from(await workbook.xlsx.writeBuffer() as unknown as Uint8Array);
+      const parsed = await parseSafeSizeWorkbook(bytes);
+      assertEquals(parsed.sheetName, 'reordered');
+      assertEquals(parsed.inputRows, 2);
+      assertEquals([...parsed.eans], ['0196222995795', '4550674065110']);
+    }
+  }
+});
+
+Deno.test('single-column input accepts an arbitrary header outside column A', async () => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('list');
+  sheet.getCell('D3').value = '自由なヘッダー';
+  sheet.getCell('D4').value = '0196222995795';
+  sheet.getCell('A5').numFmt = '@';
+  const bytes = Uint8Array.from(await workbook.xlsx.writeBuffer() as unknown as Uint8Array);
+  assertEquals([...(await parseSafeSizeWorkbook(bytes)).eans], ['0196222995795']);
+});
+
+Deno.test('EAN input sheet takes precedence over an earlier inventory scan-code sheet', async () => {
+  const workbook = new ExcelJS.Workbook();
+  const inventory = workbook.addWorksheet('inventory');
+  inventory.addRow(['スキャンコード', '自社品番']);
+  inventory.addRow(['4900000000001', '9281551']);
+  const input = workbook.addWorksheet('input');
+  input.addRow(['備考', 'EAN']);
+  input.addRow(['テスト', '4550674065110']);
+  const bytes = Uint8Array.from(await workbook.xlsx.writeBuffer() as unknown as Uint8Array);
+  const parsed = await parseSafeSizeWorkbook(bytes);
+  assertEquals(parsed.sheetName, 'input');
+  assertEquals([...parsed.eans], ['4550674065110']);
+});
+
+Deno.test('multiple EAN candidate columns are rejected instead of silently choosing one', async () => {
+  for (const headers of [['EAN', ' Ｅａｎ '], ['EAN', 'JANコード']]) {
+    const bytes = await safeSizeWorkbook(['4900000000001'], headers);
+    await assertRejects(
+      () => parseSafeSizeWorkbook(bytes),
+      PickupListValidationError,
+      '「errors」シートの1行目にEAN・JANの候補列が複数あります。',
+    );
+  }
+});
+
+for (const headers of [SAFE_SIZE_HEADERS, ['任意の見出し']]) {
   Deno.test(`SafeSize parser reads sparse rows with ${headers.length} header columns`, async () => {
     const workbook = new ExcelJS.Workbook();
     workbook.addWorksheet('notes').addRow(['メモ']);
@@ -105,13 +196,13 @@ for (const headers of [SAFE_SIZE_HEADERS, [' \u200Bean\u3000']]) {
 }
 
 Deno.test('EAN-only scan lists reject invalid or missing EAN data', async () => {
-  const invalid = await safeSizeWorkbook(['not-an-ean'], ['EAN']);
+  const invalid = await safeSizeWorkbook(['not-an-ean'], ['任意の見出し']);
   await assertRejects(
     () => parseSafeSizeWorkbook(invalid),
     PickupListValidationError,
     '「errors」シートの2行目のEANは数字のみで入力してください。',
   );
-  const empty = await safeSizeWorkbook([], ['EAN']);
+  const empty = await safeSizeWorkbook([], ['任意の見出し']);
   await assertRejects(
     () => parseSafeSizeWorkbook(empty),
     PickupListValidationError,
@@ -270,7 +361,7 @@ Deno.test('pickup workbook preserves a valid duplicate-value formatting rule', a
 
 Deno.test('SafeSize workbook without the required headers is rejected', async () => {
   const workbook = new ExcelJS.Workbook();
-  workbook.addWorksheet('wrong').addRow(['EAN', '別フォーマット']);
+  workbook.addWorksheet('wrong').addRow(['自社品番', '別フォーマット']);
   const bytes = Uint8Array.from(await workbook.xlsx.writeBuffer() as unknown as Uint8Array);
   await assertRejects(
     () => parseSafeSizeWorkbook(bytes),

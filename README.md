@@ -7,8 +7,9 @@ S3へ定期連携されるシューズ商品CSVを、ログイン後の画面に
 - S3の商品CSVを50件単位で一覧表示
 - 画面表示時の自動取得と1時間のサーバーメモリキャッシュ
 - CSVで管理する固定の部門・品種・品目マスタによる変換
-- 登録形式21列のExcelダウンロード
+- 登録形式21列＋EC-ID・EC-URLのExcelダウンロード
 - SafeSizeエラーリストと2店舗の最新在庫からピックアップリストを作成
+- アップロードした自社品番リストを2店舗の在庫へ直接照合する強化品番専用画面（`/kyoka-pickup-list`）
 - アップロード確定後に提出フォーマットを画面表示し、同じ内容のExcelをダウンロード
 - Reactの画面とHono APIを1つのDeno/Dockerコンテナで実行
 
@@ -38,3 +39,8 @@ deno task check
 deno task test
 deno task build
 ```
+
+実際のブラウザーでアップロードからExcelダウンロードまで検証するには、初回に
+`deno task test:e2e:install`、続けて`deno task test:e2e`を実行します。
+提供された自社品番リストとシューズマスターを使用し、AWS接続なしで再現できます。
+固定データと期待結果は[e2e/README.md](e2e/README.md)を参照してください。

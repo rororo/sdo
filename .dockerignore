@@ -9,4 +9,5 @@ terraform
 deploy
 docs
 integration
+e2e
 outputs

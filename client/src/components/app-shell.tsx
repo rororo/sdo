@@ -160,6 +160,14 @@ export function AppShell({
             </svg>
             <span>ピックアップリスト</span>
           </a>
+          <a
+            href={VIEW_PATHS.kyoka}
+            className={view === 'kyoka' ? 'active' : ''}
+            aria-current={view === 'kyoka' ? 'page' : undefined}
+            onClick={(event) => switchView(event, 'kyoka')}
+          >
+            <span>強化品番ピックアップ</span>
+          </a>
         </nav>
 
         <div className='toolbar-actions'>

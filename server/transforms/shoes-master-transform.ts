@@ -6,7 +6,7 @@ import { parseCsv } from '../utils/csv.ts';
 
 const OUTPUT_SHEET_NAME = 'Master Data2026FW②';
 
-export const SOURCE_HEADERS = [
+export const LEGACY_SOURCE_HEADERS = [
   '部門',
   '部門名',
   '品種',
@@ -21,6 +21,8 @@ export const SOURCE_HEADERS = [
   'size',
   'sizesys',
 ] as const;
+
+export const SOURCE_HEADERS = [...LEGACY_SOURCE_HEADERS, 'EC-ID', 'EC-URL'] as const;
 
 export const OUTPUT_HEADERS = [
   'BRAND',
@@ -44,6 +46,8 @@ export const OUTPUT_HEADERS = [
   'Custom Filter3',
   'FEDAS',
   'FEDAS Colour Code',
+  'EC-ID',
+  'EC-URL',
 ] as const;
 
 const TEMPLATE_NOTES = [
@@ -67,6 +71,8 @@ const TEMPLATE_NOTES = [
   null,
   null,
   'Product Classification Key',
+  null,
+  null,
   null,
 ] as const;
 
@@ -92,6 +98,8 @@ const OUTPUT_WIDTHS = [
   20,
   16,
   22,
+  24,
+  70,
 ] as const;
 
 type OutputValue = string | number | boolean | Date | null;
@@ -112,6 +120,8 @@ export interface ShoeProductRecord {
   commercialName: string;
   size: string;
   sizeSystem: string;
+  ecId: string;
+  ecUrl: string;
 }
 
 export const SHOE_PRODUCT_FIELDS = [
@@ -128,6 +138,8 @@ export const SHOE_PRODUCT_FIELDS = [
   { key: 'commercialName', label: '商品名(EN)' },
   { key: 'size', label: 'Size' },
   { key: 'sizeSystem', label: 'SizeSys' },
+  { key: 'ecId', label: 'EC-ID' },
+  { key: 'ecUrl', label: 'EC-URL' },
 ] as const satisfies readonly { key: keyof ShoeProductRecord; label: string }[];
 
 export class WorkbookValidationError extends Error {
@@ -222,6 +234,8 @@ function convertedValues(values: readonly unknown[], rowNumber: number): OutputV
     null,
     null,
     null,
+    excelString(values[13]),
+    excelString(values[14]),
   ];
 }
 
@@ -243,29 +257,36 @@ function sourceValues(record: ShoeProductRecord): OutputValue[] {
     record.commercialName,
     numericSize,
     record.sizeSystem,
+    record.ecId,
+    record.ecUrl,
   ];
 }
 
 export function parseShoeProductCsv(text: string): ShoeProductRecord[] {
   const records = parseCsv(text, '商品CSV');
   const header = records.shift();
+  const expectedHeaders = header?.length === LEGACY_SOURCE_HEADERS.length
+    ? LEGACY_SOURCE_HEADERS
+    : SOURCE_HEADERS;
   if (
-    !header || header.length !== SOURCE_HEADERS.length ||
+    !header || header.length !== expectedHeaders.length ||
     header.some((value, index) =>
-      normalizedHeader(value) !== normalizedHeader(SOURCE_HEADERS[index])
+      normalizedHeader(value) !== normalizedHeader(expectedHeaders[index])
     )
   ) {
     throw new WorkbookValidationError(
-      `商品CSVのヘッダーは「${SOURCE_HEADERS.join('、')}」の順にしてください。`,
+      `商品CSVのヘッダーは「${
+        SOURCE_HEADERS.join('、')
+      }」の順にしてください（旧形式の先頭13列のみも利用できます）。`,
     );
   }
 
   const products: ShoeProductRecord[] = [];
   records.forEach((record, index) => {
     const csvRow = index + 2;
-    if (record.length !== SOURCE_HEADERS.length) {
+    if (record.length !== expectedHeaders.length) {
       throw new WorkbookValidationError(
-        `商品CSVの${csvRow}行目は${SOURCE_HEADERS.length}列必要です。`,
+        `商品CSVの${csvRow}行目は${expectedHeaders.length}列必要です。`,
       );
     }
     const [
@@ -282,6 +303,8 @@ export function parseShoeProductCsv(text: string): ShoeProductRecord[] {
       commercialName,
       size,
       sizeSystem,
+      ecId = '',
+      ecUrl = '',
     ] = record;
     products.push({
       department: department!,
@@ -297,6 +320,8 @@ export function parseShoeProductCsv(text: string): ShoeProductRecord[] {
       commercialName: commercialName!,
       size: size!,
       sizeSystem: sizeSystem!,
+      ecId,
+      ecUrl,
     });
   });
 
@@ -361,6 +386,7 @@ function rowXml(rowNumber: number, values: readonly OutputValue[], options?: {
 }
 
 function worksheetXml(rows: readonly ShoeMasterRow[]): string {
+  const lastColumn = columnLetter(OUTPUT_HEADERS.length);
   const dataRows = rows.map((values, index) => rowXml(index + 5, values)).join('');
   const widths = OUTPUT_WIDTHS.map((width, index) =>
     `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`
@@ -371,7 +397,7 @@ function worksheetXml(rows: readonly ShoeMasterRow[]): string {
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <dimension ref="A1:U${rows.length + 4}"/>
+  <dimension ref="A1:${lastColumn}${rows.length + 4}"/>
   <sheetViews><sheetView workbookViewId="0" zoomScale="70" zoomScaleNormal="70"/></sheetViews>
   <sheetFormatPr defaultRowHeight="15"/>
   <cols>${widths}</cols>
@@ -382,8 +408,8 @@ function worksheetXml(rows: readonly ShoeMasterRow[]): string {
     ${rowXml(4, [...OUTPUT_HEADERS], { height: 36, header: true })}
     ${dataRows}
   </sheetData>
-  <autoFilter ref="A4:U${rows.length + 4}"/>
-  <mergeCells count="2"><mergeCell ref="A2:J2"/><mergeCell ref="K2:U2"/></mergeCells>
+  <autoFilter ref="A4:${lastColumn}${rows.length + 4}"/>
+  <mergeCells count="2"><mergeCell ref="A2:J2"/><mergeCell ref="K2:${lastColumn}2"/></mergeCells>
 </worksheet>`;
 }
 

@@ -19,6 +19,8 @@ interface ShoeProductRecord {
   commercialName: string;
   size: string;
   sizeSystem: string;
+  ecId: string;
+  ecUrl: string;
 }
 
 interface ShoeDataResponse {
@@ -60,9 +62,11 @@ const SHOE_FIELDS = [
   ['commercialName', '商品名(EN)'],
   ['size', 'Size'],
   ['sizeSystem', 'SizeSys'],
+  ['ecId', 'EC-ID'],
+  ['ecUrl', 'EC-URL'],
 ] as const satisfies readonly [keyof ShoeProductRecord, string][];
 
-const SHOE_COLUMN_WIDTHS = [62, 116, 62, 116, 62, 130, 112, 132, 142, 128, 230, 60, 74];
+const SHOE_COLUMN_WIDTHS = [62, 116, 62, 116, 62, 130, 112, 132, 142, 128, 230, 60, 74, 140, 360];
 
 function formatDate(value: string | null): string {
   if (!value) return '取得できません';
