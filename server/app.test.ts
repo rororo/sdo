@@ -16,7 +16,12 @@ import {
   SAFE_SIZE_HEADERS,
   type StoreInventoryRecord,
 } from './transforms/pickup-list-transform.ts';
-import { OUTPUT_HEADERS, type ShoeProductRecord } from './transforms/shoes-master-transform.ts';
+import {
+  OUTPUT_HEADERS,
+  SHOE_PRODUCT_FIELDS,
+  type ShoeProductRecord,
+  SOURCE_HEADERS,
+} from './transforms/shoes-master-transform.ts';
 import { type AuthConfig, createPasswordHash } from './utils/auth-session.ts';
 
 const TEST_PASSWORD = 'test-password';
@@ -533,23 +538,58 @@ Deno.test('pickup-list confirmation rejects a non-xlsx upload', async () => {
   assertEquals(await response.json(), { error: 'Excel（.xlsx）ファイルを選択してください。' });
 });
 
-Deno.test('Excel download reports an unregistered master key', async () => {
+Deno.test('product list and Excel retain unknown master products with blank attributes', async () => {
   const unknown = {
     ...sampleProduct,
-    department: '999',
-    departmentName: '未登録部門',
-    category: '9',
-    categoryName: '未登録品種',
+    department: '775',
+    departmentName: '陸上シューズ',
+    category: '3',
+    categoryName: '陸上トレーニング',
     item: '9',
-    itemName: '未登録品目',
+    itemName: '他陸上トレーニング',
+    internalCode: '9365720',
+    manufacturerModel: 'N-1093A208-101',
   };
-  const response = await createApp(auth, source([unknown])).request('/api/shoes.xlsx', {
-    headers: { Cookie: await loginCookie() },
+  const records = [sampleProduct, unknown, { ...sampleProduct, internalCode: '8692463' }];
+  const csv = [
+    SOURCE_HEADERS.join(','),
+    ...records.map((record) => SHOE_PRODUCT_FIELDS.map(({ key }) => record[key]).join(',')),
+  ].join('\n');
+  const repository = new S3ShoeProductsRepository({
+    send: () => Promise.resolve({ Body: { transformToString: () => Promise.resolve(csv) } }),
   });
-  assertEquals(response.status, 422);
-  assertEquals(await response.json(), {
-    error: '2行目の部門・品種・品目（999 / 9 / 9）は固定マスタに登録されていません。',
+  const app = createApp(auth, repository);
+  const headers = { Cookie: await loginCookie() };
+  for (let page = 1; page <= records.length; page++) {
+    const response = await app.request(`/api/shoes?page=${page}&pageSize=1`, { headers });
+    assertEquals(response.status, 200);
+    const body = await response.json();
+    assertEquals(body.total, records.length);
+    assertEquals(body.records, [records[page - 1]]);
+  }
+
+  const response = await app.request('/api/shoes.xlsx', { headers });
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get('x-processed-rows'), '3');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(
+    new Uint8Array(await response.arrayBuffer()) as unknown as Parameters<
+      typeof workbook.xlsx.load
+    >[0],
+  );
+  const sheet = workbook.getWorksheet('Master Data2026FW②')!;
+  assertEquals(sheet.rowCount, 7);
+  for (const column of ['E', 'F', 'I', 'M']) {
+    assertEquals(sheet.getCell(`${column}6`).text, '');
+  }
+  assertEquals(sheet.getCell('K6').value, unknown.manufacturerModel);
+  records.forEach((record, index) => {
+    assertEquals(sheet.getCell(`L${index + 5}`).value, record.internalCode);
   });
+  assertEquals(sheet.getCell('E5').value, 'Male');
+  assertEquals(sheet.getCell('F5').value, 'Adult');
+  assertEquals(sheet.getCell('I5').value, 'Ski');
+  assertEquals(sheet.getCell('K5').value, `${sampleProduct.manufacturerModel}MaleAdult`);
 });
 
 Deno.test('product data read failure returns a generic gateway error', async () => {

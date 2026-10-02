@@ -145,15 +145,57 @@ Deno.test('EC values are preserved as text including XML and formula-like charac
   assertEquals(sheet.getCell('W5').value, ecUrl);
 });
 
-Deno.test('CSV product validation rejects unknown fixed-master keys', () => {
-  const row = [...validRow];
-  row[0] = '999';
-  row[2] = '9';
-  row[4] = '9';
-  const products = parseShoeProductCsv(`${SOURCE_HEADERS.join(',')}\n${row.join(',')}\n`);
-  assertThrows(
-    () => step1ConvertSourceRows(products),
-    WorkbookValidationError,
-    '2行目の部門・品種・品目（999 / 9 / 9）',
-  );
+Deno.test('unknown fixed-master keys produce blank attributes and preserve source values', () => {
+  for (const [department, category, item] of [['775', '3', '9'], ['999', '9', '9']]) {
+    const row = [...validRow];
+    row[0] = department!;
+    row[2] = category!;
+    row[4] = item!;
+    const products = parseShoeProductCsv(`${SOURCE_HEADERS.join(',')}\n${row.join(',')}\n`);
+    assertEquals(step1ConvertSourceRows(products), [[
+      validRow[7]!,
+      validRow[8]!,
+      validRow[9]!,
+      validRow[10]!,
+      '',
+      '',
+      25.5,
+      'JP',
+      '',
+      null,
+      validRow[9]!,
+      validRow[6]!,
+      '',
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      validRow[13]!,
+      validRow[14]!,
+    ]]);
+  }
+});
+
+Deno.test('unknown fixed-master products still reject invalid codes and EANs', () => {
+  for (
+    const [column, value, message] of [
+      [0, 'invalid', '「部門」は整数'],
+      [2, '3.5', '「品種」は整数'],
+      [4, '', '「品目」は整数'],
+      [8, '', '「スキャンコード(jan)」は数字のみ'],
+      [8, 'invalid', '「スキャンコード(jan)」は数字のみ'],
+    ] as const
+  ) {
+    const row = [...validRow];
+    row[0] = '775';
+    row[2] = '3';
+    row[4] = '9';
+    row[column] = value;
+    const products = parseShoeProductCsv(`${SOURCE_HEADERS.join(',')}\n${row.join(',')}\n`);
+    assertThrows(() => step1ConvertSourceRows(products), WorkbookValidationError, message);
+  }
 });

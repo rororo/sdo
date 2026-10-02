@@ -204,12 +204,12 @@ function convertedValues(values: readonly unknown[], rowNumber: number): OutputV
   const category = codePart(values[2], SOURCE_HEADERS[2], rowNumber);
   const item = codePart(values[4], SOURCE_HEADERS[4], rowNumber);
   const masterKey = `${department}${category}${item}`;
-  const attributes = DEPARTMENT_ITEM_MASTER[masterKey];
-  if (!attributes) {
-    throw new WorkbookValidationError(
-      `${rowNumber}行目の部門・品種・品目（${department} / ${category} / ${item}）は固定マスタに登録されていません。`,
-    );
-  }
+  const attributes = DEPARTMENT_ITEM_MASTER[masterKey] ?? {
+    gender: '',
+    ageGroup: '',
+    sportCategory: '',
+    spike: '',
+  };
 
   const manufacturerModel = scalarValue(values[9]);
   return [
