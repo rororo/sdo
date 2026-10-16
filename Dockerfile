@@ -1,4 +1,5 @@
-FROM denoland/deno:debian-2.9.1 AS builder
+# Build portable JS/assets on the host architecture to avoid running Deno under QEMU.
+FROM --platform=$BUILDPLATFORM denoland/deno:debian-2.9.1 AS builder
 
 WORKDIR /app
 COPY deno.json deno.lock* ./
