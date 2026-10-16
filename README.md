@@ -5,6 +5,7 @@ S3へ定期連携されるシューズ商品CSVを、ログイン後の画面に
 
 - ユーザー名とパスワードによるログイン
 - S3の商品CSVを50件単位で一覧表示
+- 自社品番リストで対象期の商品を絞り込む強化品番商品一覧（`/kyoka-products`）
 - 画面表示時の自動取得と1時間のサーバーメモリキャッシュ
 - CSVで管理する固定の部門・品種・品目マスタによる変換
 - 登録形式21列＋EC-ID・EC-URLのExcelダウンロード
@@ -16,6 +17,7 @@ S3へ定期連携されるシューズ商品CSVを、ログイン後の画面に
 データの参照先は [`docs/scanalytics-sdo-data.md`](docs/scanalytics-sdo-data.md)、変換規則と
 エラー条件は [`docs/shoes-master-spec.md`](docs/shoes-master-spec.md) と
 [`docs/pickup-list-spec.md`](docs/pickup-list-spec.md) を参照してください。
+強化品番商品一覧の仕様は[`docs/kyoka-products-spec.md`](docs/kyoka-products-spec.md)を参照してください。
 
 固定マスタは `server/data/department-item-master.csv` で管理します。CSVを変更した場合も
 アプリケーションコードの変更は不要です。

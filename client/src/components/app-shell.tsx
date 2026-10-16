@@ -150,6 +150,14 @@ export function AppShell({
             <span>商品一覧</span>
           </a>
           <a
+            href={VIEW_PATHS.kyokaProducts}
+            className={view === 'kyokaProducts' ? 'active' : ''}
+            aria-current={view === 'kyokaProducts' ? 'page' : undefined}
+            onClick={(event) => switchView(event, 'kyokaProducts')}
+          >
+            <span>強化品番商品一覧</span>
+          </a>
+          <a
             href={VIEW_PATHS.pickup}
             className={view === 'pickup' ? 'active' : ''}
             aria-current={view === 'pickup' ? 'page' : undefined}

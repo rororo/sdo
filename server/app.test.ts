@@ -167,6 +167,8 @@ Deno.test('application APIs reject unauthenticated requests', async () => {
   const app = createApp(auth, source());
   assertEquals((await app.request('/api/auth/session')).status, 401);
   assertEquals((await app.request('/api/shoes')).status, 401);
+  assertEquals((await app.request('/api/kyoka-products', { method: 'POST' })).status, 401);
+  assertEquals((await app.request('/api/kyoka-products.xlsx', { method: 'POST' })).status, 401);
   assertEquals((await app.request('/api/shoes.xlsx')).status, 401);
   assertEquals((await app.request('/api/kyoka-pickup-list', { method: 'POST' })).status, 401);
   assertEquals((await app.request('/api/kyoka-pickup-list.xlsx', { method: 'POST' })).status, 401);

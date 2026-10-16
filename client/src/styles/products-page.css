@@ -224,3 +224,31 @@
     padding-inline: 7px;
   }
 }
+
+.kyoka-products-page .upload-panel {
+  min-height: 0;
+  flex: none;
+  padding: 18px;
+}
+.kyoka-products-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+.kyoka-products-unmatched {
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.kyoka-products-unmatched summary {
+  cursor: pointer;
+}
+.kyoka-products-unmatched div {
+  max-height: 110px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}

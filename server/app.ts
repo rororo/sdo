@@ -12,6 +12,7 @@ import { createAuthRoutes } from './routes/auth-routes.ts';
 import { createHealthRoutes } from './routes/health-routes.ts';
 import { createKyokaPickupRoutes } from './routes/kyoka-pickup-routes.ts';
 import { createPickupListRoutes } from './routes/pickup-list-routes.ts';
+import { createKyokaProductsRoutes } from './routes/kyoka-products-routes.ts';
 import { createShoesRoutes } from './routes/shoes-routes.ts';
 import { type AuthConfig, loadAuthConfig } from './utils/auth-session.ts';
 
@@ -34,6 +35,7 @@ export function createApp(
   app.use('/api/*', requireApiAuth(auth));
   app.route('/api', createAuthRoutes(auth));
   app.route('/api', createShoesRoutes(shoeProductsRepository));
+  app.route('/api', createKyokaProductsRoutes(shoeProductsRepository));
   app.route('/api', createPickupListRoutes(storeInventoryRepository));
   app.route('/api', createKyokaPickupRoutes(storeInventoryRepository));
   return app;

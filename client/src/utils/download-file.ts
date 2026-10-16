@@ -1,6 +1,6 @@
 const EXCEL_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-function triggerDownload(blob: Blob, filename: string): void {
+export function downloadBlobFile(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -19,7 +19,7 @@ export async function downloadResponseFile(
   response: Response,
   fallbackFilename: string,
 ): Promise<void> {
-  triggerDownload(await response.blob(), responseFilename(response, fallbackFilename));
+  downloadBlobFile(await response.blob(), responseFilename(response, fallbackFilename));
 }
 
 export function downloadBase64Workbook(workbookBase64: string, filename: string): void {
@@ -28,5 +28,5 @@ export function downloadBase64Workbook(workbookBase64: string, filename: string)
   for (let index = 0; index < binary.length; index++) {
     bytes[index] = binary.charCodeAt(index);
   }
-  triggerDownload(new Blob([bytes], { type: EXCEL_CONTENT_TYPE }), filename);
+  downloadBlobFile(new Blob([bytes], { type: EXCEL_CONTENT_TYPE }), filename);
 }

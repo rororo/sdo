@@ -4,6 +4,7 @@ import { BrandMark } from './components/brand-mark.tsx';
 import { LoginPage } from './pages/login-page.tsx';
 import { KyokaPickupPage } from './pages/kyoka-pickup-page.tsx';
 import { type PendingFileDrop, PickupListPage } from './pages/pickup-list-page.tsx';
+import { KyokaProductsPage } from './pages/kyoka-products-page.tsx';
 import { ProductsPage } from './pages/products-page.tsx';
 import { apiUrl } from './utils/api.ts';
 import { type View, VIEW_PATHS, viewFromPathname } from './utils/routing.ts';
@@ -31,6 +32,12 @@ export function App() {
   );
   const [pendingPickupDrop, setPendingPickupDrop] = useState<PendingFileDrop | null>(null);
   const [pendingKyokaDrop, setPendingKyokaDrop] = useState<PendingFileDrop | null>(null);
+  const [pendingKyokaProductsDrop, setPendingKyokaProductsDrop] = useState<PendingFileDrop | null>(
+    null,
+  );
+  const [kyokaProductsToolbar, setKyokaProductsToolbar] = useState<ToolbarAction>(() =>
+    unavailableToolbarAction('アップロード確定後に利用できます')
+  );
   const [productToolbar, setProductToolbar] = useState<ToolbarAction>(() =>
     unavailableToolbarAction('表示中の商品データをExcelでダウンロード')
   );
@@ -92,6 +99,8 @@ export function App() {
   const resetAuthenticatedState = useCallback(() => {
     setPendingPickupDrop(null);
     setPendingKyokaDrop(null);
+    setPendingKyokaProductsDrop(null);
+    setKyokaProductsToolbar(unavailableToolbarAction('アップロード確定後に利用できます'));
     setProductToolbar(unavailableToolbarAction('表示中の商品データをExcelでダウンロード'));
     setPickupToolbar(unavailableToolbarAction('アップロード確定後に利用できます'));
     setKyokaToolbar(unavailableToolbarAction('アップロード確定後に利用できます'));
@@ -111,7 +120,9 @@ export function App() {
 
   const handDroppedFilesToPickupPage = useCallback((files: File[]) => {
     dropSequence.current += 1;
-    if (view === 'kyoka') {
+    if (view === 'kyokaProducts') {
+      setPendingKyokaProductsDrop({ id: dropSequence.current, files });
+    } else if (view === 'kyoka') {
       setPendingKyokaDrop({ id: dropSequence.current, files });
     } else {
       navigateToView('pickup');
@@ -143,7 +154,9 @@ export function App() {
     <AppShell
       username={auth.username}
       view={view}
-      toolbarAction={view === 'products'
+      toolbarAction={view === 'kyokaProducts'
+        ? kyokaProductsToolbar
+        : view === 'products'
         ? productToolbar
         : view === 'kyoka'
         ? kyokaToolbar
@@ -153,6 +166,13 @@ export function App() {
       onLogout={logout}
       onFilesDropped={handDroppedFilesToPickupPage}
     >
+      <KyokaProductsPage
+        active={view === 'kyokaProducts'}
+        pendingDrop={pendingKyokaProductsDrop}
+        onUnauthorized={handleUnauthorized}
+        onToolbarChange={setKyokaProductsToolbar}
+        showToast={showToast}
+      />
       <ProductsPage
         active={view === 'products'}
         onUnauthorized={handleUnauthorized}
