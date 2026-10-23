@@ -37,7 +37,7 @@ s3://scanalytics-report/sdo/shoe_products/kiukkn=202609_202703/shoe_products.csv
 s3://scanalytics-report/sdo/shoe_store_inventory/shoe_store_inventory.csv
 ```
 
-- 店舗`10309`と`10319`を対象とした最新の在庫スナップショット。
+- 店舗`10309`・`10319`・`10604`を対象とした最新の在庫スナップショット。
 - 毎回同じS3キーへ上書きされる。
 
 ## 共通仕様と更新

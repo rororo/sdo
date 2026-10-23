@@ -61,7 +61,7 @@ export const PICKUP_SUBMISSION_HEADERS = [
   ...PICKUP_LIST_HEADERS,
 ] as const;
 
-export const TARGET_STORE_CODES = new Set(['10309', '10319']);
+export const TARGET_STORE_CODES = new Set(['10309', '10319', '10604']);
 
 const OUTPUT_SHEET_NAME = 'ピックアップ';
 const SUMMARY_SHEET_NAME = '集計表';
