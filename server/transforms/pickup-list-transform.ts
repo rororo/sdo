@@ -67,7 +67,6 @@ const OUTPUT_SHEET_NAME = 'ピックアップ';
 const SUMMARY_SHEET_NAME = '集計表';
 const TEMPLATE_FIRST_DATA_ROW = 3;
 const TEMPLATE_LAST_DATA_ROW = 814;
-const TEMPLATE_MAX_RECORDS = TEMPLATE_LAST_DATA_ROW - TEMPLATE_FIRST_DATA_ROW + 1;
 const DUPLICATE_FORMATTING_RANGE = 'P1:P816 P893:P1048576';
 const EMPTY_DUPLICATE_FORMATTING = `<conditionalFormatting sqref="${DUPLICATE_FORMATTING_RANGE}"/>`;
 const DUPLICATE_FORMATTING = `<conditionalFormatting sqref="${DUPLICATE_FORMATTING_RANGE}">` +
@@ -470,7 +469,7 @@ function requireSubmissionSheets(workbook: ExcelJS.Workbook): {
   return { summary, output };
 }
 
-function restoreDuplicateFormatting(bytes: Uint8Array): Uint8Array {
+function restoreDuplicateFormatting(bytes: Uint8Array, expanded: boolean): Uint8Array {
   const archive = unzipSync(bytes);
   let restored = false;
 
@@ -478,7 +477,10 @@ function restoreDuplicateFormatting(bytes: Uint8Array): Uint8Array {
     if (!/^xl\/worksheets\/sheet\d+\.xml$/.test(path)) continue;
     const xml = strFromU8(content);
     if (!xml.includes(EMPTY_DUPLICATE_FORMATTING)) continue;
-    archive[path] = strToU8(xml.replace(EMPTY_DUPLICATE_FORMATTING, DUPLICATE_FORMATTING));
+    const formatting = expanded
+      ? DUPLICATE_FORMATTING.replace(DUPLICATE_FORMATTING_RANGE, 'P1:P1048576')
+      : DUPLICATE_FORMATTING;
+    archive[path] = strToU8(xml.replace(EMPTY_DUPLICATE_FORMATTING, formatting));
     restored = true;
   }
 
@@ -493,16 +495,46 @@ export async function step3CreateSubmissionWorkbook(
   records: readonly PickupListRecord[],
   templateBytes?: Uint8Array,
 ): Promise<Uint8Array> {
-  if (records.length > TEMPLATE_MAX_RECORDS) {
-    throw new PickupListValidationError(
-      `提出フォーマットへ出力できる商品は${TEMPLATE_MAX_RECORDS}件までです。`,
-    );
-  }
-
   const workbook = await loadPickupTemplate(templateBytes);
   const { summary, output } = requireSubmissionSheets(workbook);
+  const lastDataRow = Math.max(
+    TEMPLATE_LAST_DATA_ROW,
+    TEMPLATE_FIRST_DATA_ROW + records.length - 1,
+  );
+  const expanded = lastDataRow > TEMPLATE_LAST_DATA_ROW;
 
-  for (let row = TEMPLATE_FIRST_DATA_ROW; row <= TEMPLATE_LAST_DATA_ROW; row++) {
+  if (expanded) {
+    const templateRow = output.getRow(TEMPLATE_LAST_DATA_ROW);
+    const completionFormula = templateRow.getCell(6).formula;
+    if (!completionFormula) {
+      throw new Error('Pickup-list submission template completion formula is invalid.');
+    }
+    for (let row = TEMPLATE_LAST_DATA_ROW + 1; row <= lastDataRow; row++) {
+      const added = output.getRow(row);
+      added.height = templateRow.height;
+      for (let column = 1; column <= PICKUP_SUBMISSION_HEADERS.length; column++) {
+        added.getCell(column).style = structuredClone(templateRow.getCell(column).style);
+      }
+      added.getCell(6).value = {
+        formula: completionFormula.replace(/(\$?[A-Z]+)814\b/g, (_, column) => `${column}${row}`),
+      };
+    }
+    output.autoFilter = `A2:R${lastDataRow}`;
+    output.pageSetup.printArea = `G1:R${lastDataRow}`;
+    summary.eachRow((row) => {
+      row.eachCell((cell) => {
+        if (!cell.formula) return;
+        const formula = cell.formula.replace(
+          /(ピックアップ!\$?[A-Z]+\$?3:\$?[A-Z]+\$?)(\d+)/g,
+          (_, range: string, end: string) => `${range}${Math.max(Number(end), lastDataRow)}`,
+        );
+        cell.value = { formula, result: cell.result };
+      });
+    });
+    workbook.calcProperties.fullCalcOnLoad = true;
+  }
+
+  for (let row = TEMPLATE_FIRST_DATA_ROW; row <= lastDataRow; row++) {
     output.getCell(row, 7).value = null;
     for (let column = 8; column <= PICKUP_SUBMISSION_HEADERS.length; column++) {
       output.getCell(row, column).value = null;
@@ -530,5 +562,6 @@ export async function step3CreateSubmissionWorkbook(
   const workbookOutput = await workbook.xlsx.writeBuffer();
   return restoreDuplicateFormatting(
     Uint8Array.from(workbookOutput as unknown as Uint8Array),
+    expanded,
   );
 }

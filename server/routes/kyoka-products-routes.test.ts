@@ -151,7 +151,7 @@ Deno.test('empty matches are visible but cannot be downloaded; invalid uploads n
   assertEquals((await failed.request('/kyoka-products', await upload())).status, 502);
 });
 
-Deno.test('product exports do not inherit the pickup 812 product limit', async () => {
+Deno.test('product exports support more than 812 products', async () => {
   const source = {
     ...dataset(),
     records: Array.from(

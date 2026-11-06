@@ -85,7 +85,7 @@ Deno.test('kyoka joins internal codes across sizes and stores without restrictin
   assertEquals(workbook.getWorksheet('集計表')!.getCell('B5').result, 2);
 });
 
-Deno.test('kyoka rejects EAN matching, missing inventory and output beyond template capacity', async () => {
+Deno.test('kyoka rejects EAN matching and missing inventory', async () => {
   const app = createKyokaPickupRoutes(inventory([sample]));
   for (const code of [sample.ean, '9999999']) {
     const response = await app.request('/kyoka-pickup-list', await upload([code], ['EAN']));
@@ -95,14 +95,20 @@ Deno.test('kyoka rejects EAN matching, missing inventory and output beyond templ
       '自社品番に一致する対象店舗在庫がありません',
     );
   }
+});
+
+Deno.test('kyoka exports more products than the original template capacity', async () => {
   const records = Array.from(
     { length: 813 },
     (_, i) => ({ ...sample, internalCode: String(9000000 + i) }),
   );
   const response = await createKyokaPickupRoutes(inventory(records))
     .request('/kyoka-pickup-list', await upload(records.map((record) => record.internalCode)));
-  assertEquals(response.status, 422);
-  assertStringIncludes((await response.json()).error, '812件まで');
+  assertEquals(response.status, 200);
+  const result = await response.json();
+  assertEquals(result.stats.outputRows, 813);
+  assertEquals(result.rows.length, 813);
+  assertEquals(result.rows[812][15], records[812]!.internalCode);
 });
 
 Deno.test('kyoka reports inventory read and validation failures', async () => {

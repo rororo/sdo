@@ -328,6 +328,59 @@ Deno.test('pickup workbook preserves the complete submission template format', a
   }
 });
 
+for (const count of [813, 10_000]) {
+  Deno.test(`pickup workbook expands formatting and summary ranges for ${count} products`, async () => {
+    const base = step2RemoveDuplicateProducts(
+      step1JoinInventoryWithErrors(
+        parseStoreInventoryCsv(inventoryCsv),
+        new Set(['4900000000001']),
+      ),
+    )[0]!;
+    const records = Array.from({ length: count }, (_, index) => ({
+      ...base,
+      internalCode: String(8_000_000 + index),
+    }));
+    const bytes = await step3CreateSubmissionWorkbook(records);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(bytes as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+    const output = workbook.getWorksheet('ピックアップ')!;
+    const summary = workbook.getWorksheet('集計表')!;
+    const lastRow = count + 2;
+    assertEquals(output.autoFilter, `A2:R${lastRow}`);
+    assertEquals(output.pageSetup.printArea, `G1:R${lastRow}`);
+    assertEquals(output.getCell(`G${lastRow}`).result, count);
+    assertEquals(output.getCell(`P${lastRow}`).value, records[count - 1]!.internalCode);
+    for (const row of new Set([815, Math.min(850, lastRow), lastRow])) {
+      assertEquals(output.getRow(row).height, output.getRow(814).height);
+      assertEquals(output.getCell(`F${row}`).formula, `IF(COUNTA(B${row}:E${row})=4, "完了", "")`);
+      for (let column = 1; column <= 18; column++) {
+        assertEquals(output.getCell(row, column).style, output.getCell(814, column).style);
+      }
+    }
+    const summaryEnd = Math.max(9924, lastRow);
+    assertEquals(summary.getCell('B5').formula, `COUNT(ピックアップ!G3:G${summaryEnd})`);
+    assertEquals(summary.getCell('C5').formula, `COUNTIF(ピックアップ!F3:F${summaryEnd},"完了")`);
+    for (const [cell, column] of [['D5', 'B'], ['E5', 'C'], ['F5', 'D'], ['G5', 'E']]) {
+      assertEquals(
+        summary.getCell(cell!).formula,
+        `COUNT(ピックアップ!${column}3:${column}${summaryEnd})`,
+      );
+    }
+    assertEquals(
+      summary.getCell('I5').formula,
+      `COUNTA(_xlfn.UNIQUE(ピックアップ!E3:E${summaryEnd}))-1`,
+    );
+    assertEquals(summary.getCell('B5').result, count);
+    assertEquals(summary.getCell('B7').result, count);
+    assertEquals(conditionalFormattings(output)[0]?.ref, 'P1:P1048576');
+    const xml = Object.entries(unzipSync(bytes))
+      .filter(([path]) => /^xl\/worksheets\/sheet\d+\.xml$/.test(path))
+      .map(([, content]) => strFromU8(content))
+      .find((content) => content.includes('sqref="P1:P1048576"'))!;
+    assertStringIncludes(xml, '<cfRule type="duplicateValues" dxfId="0" priority="1"/>');
+  });
+}
+
 Deno.test('pickup workbook preserves a valid duplicate-value formatting rule', async () => {
   const bytes = await step3CreateSubmissionWorkbook([{
     department: '302',
